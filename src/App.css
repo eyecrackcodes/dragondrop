@@ -1,0 +1,22 @@
+/* Dragon Drop Sales Organization Management System */
+/* Clean CSS without default React conflicts */
+
+.App {
+  min-height: 100vh;
+  background-color: #f9fafb;
+}
+
+/* Ensure no default React styles interfere */
+.App-logo {
+  display: none !important;
+}
+
+.App-header {
+  display: none !important;
+}
+
+/* Custom utility classes */
+.debug-visible {
+  border: 2px solid red !important;
+  background-color: rgba(255, 0, 0, 0.1) !important;
+}
