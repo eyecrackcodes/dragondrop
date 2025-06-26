@@ -16,26 +16,43 @@ import {
 import { getStorage } from 'firebase/storage';
 import { Employee, Team, ExitSurvey, ChangeLogEntry, Site, Role, CommissionTier } from '../types';
 
-// Firebase configuration - loaded from environment variables
+// Firebase environment variables loaded from .env file
+
+// Debug: Log what environment variables React is seeing
+console.log('🔧 DEBUG: Environment variables check:');
+console.log('🔧 REACT_APP_FIREBASE_API_KEY:', process.env.REACT_APP_FIREBASE_API_KEY ? `[SET: ${process.env.REACT_APP_FIREBASE_API_KEY.substring(0, 10)}...]` : '[MISSING]');
+console.log('🔧 REACT_APP_FIREBASE_DATABASE_URL:', process.env.REACT_APP_FIREBASE_DATABASE_URL || '[MISSING]');
+console.log('🔧 REACT_APP_FIREBASE_PROJECT_ID:', process.env.REACT_APP_FIREBASE_PROJECT_ID || '[MISSING]');
+console.log('🔧 All Firebase env vars found:', Object.keys(process.env).filter(key => key.startsWith('REACT_APP_FIREBASE_')));
+
+// Firebase configuration - temporary hardcoded to fix connection issue
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || '',
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || '',
-  databaseURL: process.env.REACT_APP_FIREBASE_DATABASE_URL || '',
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || '',
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || '',
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: process.env.REACT_APP_FIREBASE_APP_ID || '',
-  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || ''
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || 'AIzaSyA-4im1CI-Ds3f2unSkNUViBEcqIkI7jAE',
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || 'dragondrop-9802e.firebaseapp.com',
+  databaseURL: process.env.REACT_APP_FIREBASE_DATABASE_URL || 'https://dragondrop-9802e-default-rtdb.firebaseio.com',
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || 'dragondrop-9802e',
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || 'dragondrop-9802e.firebasestorage.app',
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || '973998104962',
+  appId: process.env.REACT_APP_FIREBASE_APP_ID || '1:973998104962:web:5733e8dc8539e4771d2f9b',
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || 'G-W1QKTP0NM2'
 };
+
+console.log('🔧 DEBUG: Firebase config values:');
+console.log('🔧 apiKey:', firebaseConfig.apiKey ? `[${firebaseConfig.apiKey.substring(0, 10)}...]` : '[EMPTY]');
+console.log('🔧 databaseURL:', firebaseConfig.databaseURL || '[EMPTY]');
+console.log('🔧 projectId:', firebaseConfig.projectId || '[EMPTY]');
 
 // Validate Firebase configuration
 const validateFirebaseConfig = () => {
   const requiredFields = ['apiKey', 'databaseURL', 'projectId'];
-  const missing = requiredFields.filter(field => !firebaseConfig[field as keyof typeof firebaseConfig]);
+  const missing = requiredFields.filter(field => {
+    const value = firebaseConfig[field as keyof typeof firebaseConfig];
+    return !value || value === '';
+  });
   
   if (missing.length > 0) {
     console.warn('🔥 Firebase configuration incomplete. Missing:', missing);
-    console.warn('💡 App will run in demo mode. Create .env file with Firebase credentials to enable live data.');
+    console.warn('💡 App will run in demo mode. Check .env file with Firebase credentials.');
     return false;
   }
   

@@ -34,7 +34,9 @@ export const useFirebaseEmployees = () => {
         }
 
         // Set up real-time listener
+        console.log('🔗 Setting up Firebase real-time listener for employees');
         unsubscribe = EmployeeService.onEmployeesChange((employeeData) => {
+          console.log('📡 Firebase data update received:', employeeData.length, 'employees');
           setEmployees(employeeData);
           setIsLoading(false);
         });
@@ -51,6 +53,7 @@ export const useFirebaseEmployees = () => {
     // Cleanup listener on unmount
     return () => {
       if (unsubscribe) {
+        console.log('🔌 Cleaning up Firebase listener');
         unsubscribe();
       }
     };
@@ -384,24 +387,41 @@ export const useFirebaseConnection = () => {
     const checkConnection = async () => {
       try {
         setIsLoading(true);
+        
+        // First check if Firebase is configured
         const configured = FirebaseUtils.isConfigured();
+        console.log('🔥 Firebase configured check:', configured);
         setIsConfigured(configured);
 
         if (configured) {
-          // Just assume it's connected if configured - let the data hooks handle errors
-          setIsConnected(true);
+          // Test actual connection to Firebase
+          try {
+            const connectionTest = await FirebaseUtils.testConnection();
+            console.log('🔥 Firebase connection test result:', connectionTest);
+            setIsConnected(connectionTest);
+          } catch (connectionError) {
+            console.error('🔥 Firebase connection test failed:', connectionError);
+            setIsConnected(false);
+          }
         } else {
+          console.warn('🔥 Firebase not configured - missing environment variables');
           setIsConnected(false);
         }
       } catch (error) {
-        console.error('Error checking Firebase connection:', error);
+        console.error('🔥 Error checking Firebase connection:', error);
         setIsConnected(false);
+        setIsConfigured(false);
       } finally {
         setIsLoading(false);
       }
     };
 
     checkConnection();
+    
+    // Also re-check connection every 5 minutes to handle network issues (reduced frequency)
+    const interval = setInterval(checkConnection, 300000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   return {
