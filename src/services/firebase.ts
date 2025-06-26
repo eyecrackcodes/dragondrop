@@ -18,20 +18,51 @@ import { Employee, Team, ExitSurvey, ChangeLogEntry, Site, Role, CommissionTier 
 
 // Firebase configuration - loaded from environment variables
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.REACT_APP_FIREBASE_DATABASE_URL,
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.REACT_APP_FIREBASE_APP_ID,
-  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || '',
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || '',
+  databaseURL: process.env.REACT_APP_FIREBASE_DATABASE_URL || '',
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || '',
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: process.env.REACT_APP_FIREBASE_APP_ID || '',
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || ''
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const database = getDatabase(app);
-export const storage = getStorage(app);
+// Validate Firebase configuration
+const validateFirebaseConfig = () => {
+  const requiredFields = ['apiKey', 'databaseURL', 'projectId'];
+  const missing = requiredFields.filter(field => !firebaseConfig[field as keyof typeof firebaseConfig]);
+  
+  if (missing.length > 0) {
+    console.warn('🔥 Firebase configuration incomplete. Missing:', missing);
+    console.warn('💡 App will run in demo mode. Create .env file with Firebase credentials to enable live data.');
+    return false;
+  }
+  
+  console.log('🔥 Firebase configuration loaded successfully');
+  return true;
+};
+
+// Initialize Firebase only if properly configured
+let app: any = null;
+let database: any = null;
+let storage: any = null;
+
+const isFirebaseConfigured = validateFirebaseConfig();
+
+if (isFirebaseConfigured) {
+  try {
+    app = initializeApp(firebaseConfig);
+    database = getDatabase(app);
+    storage = getStorage(app);
+    console.log('✅ Firebase initialized successfully');
+  } catch (error) {
+    console.error('❌ Firebase initialization failed:', error);
+    console.warn('💡 Falling back to demo mode');
+  }
+}
+
+export { database, storage };
 
 // Database paths
 const EMPLOYEES_PATH = 'employees';
@@ -43,6 +74,11 @@ const SETTINGS_PATH = 'settings';
 export const EmployeeService = {
   // Create a new employee
   async create(employee: Omit<Employee, 'id'>): Promise<string> {
+    if (!database) {
+      console.warn('Firebase not configured - create operation skipped');
+      return 'demo-' + Date.now().toString();
+    }
+    
     try {
       const employeesRef = ref(database, EMPLOYEES_PATH);
       const newEmployeeRef = push(employeesRef);
@@ -63,6 +99,11 @@ export const EmployeeService = {
 
   // Get all employees
   async getAll(): Promise<Employee[]> {
+    if (!database) {
+      console.warn('Firebase not configured - returning empty array');
+      return [];
+    }
+    
     try {
       const employeesRef = ref(database, EMPLOYEES_PATH);
       const snapshot = await get(employeesRef);
@@ -86,6 +127,11 @@ export const EmployeeService = {
 
   // Get employees by site
   async getBySite(site: Site): Promise<Employee[]> {
+    if (!database) {
+      console.warn('Firebase not configured - returning empty array');
+      return [];
+    }
+    
     try {
       const employeesRef = ref(database, EMPLOYEES_PATH);
       const siteQuery = query(employeesRef, orderByChild('site'), equalTo(site));
@@ -110,6 +156,11 @@ export const EmployeeService = {
 
   // Get single employee
   async getById(id: string): Promise<Employee | null> {
+    if (!database) {
+      console.warn('Firebase not configured - returning null');
+      return null;
+    }
+    
     try {
       const employeeRef = ref(database, `${EMPLOYEES_PATH}/${id}`);
       const snapshot = await get(employeeRef);
@@ -127,6 +178,11 @@ export const EmployeeService = {
 
   // Update employee
   async update(id: string, updates: Partial<Employee>): Promise<void> {
+    if (!database) {
+      console.warn('Firebase not configured - update operation skipped');
+      return;
+    }
+    
     try {
       const employeeRef = ref(database, `${EMPLOYEES_PATH}/${id}`);
       await update(employeeRef, updates);
@@ -138,6 +194,11 @@ export const EmployeeService = {
 
   // Delete employee
   async delete(id: string): Promise<void> {
+    if (!database) {
+      console.warn('Firebase not configured - delete operation skipped');
+      return;
+    }
+    
     try {
       const employeeRef = ref(database, `${EMPLOYEES_PATH}/${id}`);
       await remove(employeeRef);
@@ -210,6 +271,11 @@ export const EmployeeService = {
 
   // Real-time listener for employees
   onEmployeesChange(callback: (employees: Employee[]) => void): () => void {
+    if (!database) {
+      console.warn('Firebase not configured - returning empty unsubscribe function');
+      return () => {};
+    }
+    
     const employeesRef = ref(database, EMPLOYEES_PATH);
     
     const unsubscribe = onValue(employeesRef, (snapshot) => {
@@ -231,6 +297,11 @@ export const EmployeeService = {
 
   // Real-time listener for site-specific employees
   onSiteEmployeesChange(site: Site, callback: (employees: Employee[]) => void): () => void {
+    if (!database) {
+      console.warn('Firebase not configured - returning empty unsubscribe function');
+      return () => {};
+    }
+    
     const employeesRef = ref(database, EMPLOYEES_PATH);
     const siteQuery = query(employeesRef, orderByChild('site'), equalTo(site));
     
@@ -254,6 +325,11 @@ export const EmployeeService = {
 // Team Management
 export const TeamService = {
   async create(team: Omit<Team, 'teamId'>): Promise<string> {
+    if (!database) {
+      console.warn('Firebase not configured - team create operation skipped');
+      return 'demo-team-' + Date.now().toString();
+    }
+    
     try {
       const teamsRef = ref(database, TEAMS_PATH);
       const newTeamRef = push(teamsRef);
@@ -273,6 +349,11 @@ export const TeamService = {
   },
 
   async getAll(): Promise<Team[]> {
+    if (!database) {
+      console.warn('Firebase not configured - returning empty teams array');
+      return [];
+    }
+    
     try {
       const teamsRef = ref(database, TEAMS_PATH);
       const snapshot = await get(teamsRef);
@@ -295,6 +376,11 @@ export const TeamService = {
   },
 
   async update(teamId: string, updates: Partial<Team>): Promise<void> {
+    if (!database) {
+      console.warn('Firebase not configured - team update operation skipped');
+      return;
+    }
+    
     try {
       const teamRef = ref(database, `${TEAMS_PATH}/${teamId}`);
       await update(teamRef, updates);
@@ -305,6 +391,11 @@ export const TeamService = {
   },
 
   async delete(teamId: string): Promise<void> {
+    if (!database) {
+      console.warn('Firebase not configured - team delete operation skipped');
+      return;
+    }
+    
     try {
       const teamRef = ref(database, `${TEAMS_PATH}/${teamId}`);
       await remove(teamRef);
@@ -317,22 +408,53 @@ export const TeamService = {
 
 // Exit survey operations
 export const exitSurveyService = {
-  getAll: () => get(ref(database, 'exitSurveys')),
+  getAll: () => {
+    if (!database) {
+      console.warn('Firebase not configured - returning empty promise');
+      return Promise.resolve({ exists: () => false, val: () => null });
+    }
+    return get(ref(database, 'exitSurveys'));
+  },
   
-  getById: (surveyId: string) => get(ref(database, `exitSurveys/${surveyId}`)),
+  getById: (surveyId: string) => {
+    if (!database) {
+      console.warn('Firebase not configured - returning empty promise');
+      return Promise.resolve({ exists: () => false, val: () => null });
+    }
+    return get(ref(database, `exitSurveys/${surveyId}`));
+  },
   
   create: (survey: Omit<ExitSurvey, 'surveyId'>) => {
+    if (!database) {
+      console.warn('Firebase not configured - create operation skipped');
+      return Promise.resolve();
+    }
     const surveyRef = push(ref(database, 'exitSurveys'));
     const newSurvey = { ...survey, surveyId: surveyRef.key! };
     return set(surveyRef, newSurvey);
   },
   
-  update: (surveyId: string, updates: Partial<ExitSurvey>) => 
-    update(ref(database, `exitSurveys/${surveyId}`), updates),
+  update: (surveyId: string, updates: Partial<ExitSurvey>) => {
+    if (!database) {
+      console.warn('Firebase not configured - update operation skipped');
+      return Promise.resolve();
+    }
+    return update(ref(database, `exitSurveys/${surveyId}`), updates);
+  },
   
-  delete: (surveyId: string) => remove(ref(database, `exitSurveys/${surveyId}`)),
+  delete: (surveyId: string) => {
+    if (!database) {
+      console.warn('Firebase not configured - delete operation skipped');
+      return Promise.resolve();
+    }
+    return remove(ref(database, `exitSurveys/${surveyId}`));
+  },
   
   getByEmployee: async (employeeId: string) => {
+    if (!database) {
+      console.warn('Firebase not configured - returning empty array');
+      return [];
+    }
     const snapshot = await get(ref(database, 'exitSurveys'));
     const surveys = snapshot.val() || {};
     return Object.values(surveys).filter((survey: any) => survey.employeeId === employeeId);
@@ -341,21 +463,39 @@ export const exitSurveyService = {
 
 // Change log operations
 export const changeLogService = {
-  getAll: () => get(ref(database, 'changeLog')),
+  getAll: () => {
+    if (!database) {
+      console.warn('Firebase not configured - returning empty promise');
+      return Promise.resolve({ exists: () => false, val: () => null });
+    }
+    return get(ref(database, 'changeLog'));
+  },
   
   create: (change: Omit<ChangeLogEntry, 'changeId'>) => {
+    if (!database) {
+      console.warn('Firebase not configured - create operation skipped');
+      return Promise.resolve();
+    }
     const changeRef = push(ref(database, 'changeLog'));
     const newChange = { ...change, changeId: changeRef.key! };
     return set(changeRef, newChange);
   },
   
   getByEmployee: async (employeeId: string) => {
+    if (!database) {
+      console.warn('Firebase not configured - returning empty array');
+      return [];
+    }
     const snapshot = await get(ref(database, 'changeLog'));
     const changes = snapshot.val() || {};
     return Object.values(changes).filter((change: any) => change.employeeId === employeeId);
   },
   
   getRecent: async (limit: number = 50) => {
+    if (!database) {
+      console.warn('Firebase not configured - returning empty array');
+      return [];
+    }
     const snapshot = await get(ref(database, 'changeLog'));
     const changes = snapshot.val() || {};
     return Object.values(changes)
@@ -368,6 +508,11 @@ export const changeLogService = {
 export const DataService = {
   // Seed initial data (for first-time setup)
   async seedInitialData(): Promise<void> {
+    if (!database) {
+      console.warn('Firebase not configured - seed operation skipped');
+      return;
+    }
+    
     try {
       const employees = await EmployeeService.getAll();
       
@@ -427,6 +572,11 @@ export const DataService = {
 
   // Import data (for migration or bulk upload)
   async importEmployees(employees: Omit<Employee, 'id'>[]): Promise<string[]> {
+    if (!database) {
+      console.warn('Firebase not configured - import operation skipped');
+      return [];
+    }
+    
     try {
       const createdIds: string[] = [];
       
@@ -451,15 +601,9 @@ export const generateId = () => {
 export const getCurrentTimestamp = () => Date.now();
 
 export const FirebaseUtils = {
-  // Check if Firebase is configured
+  // Check if Firebase is configured and initialized
   isConfigured(): boolean {
-    return !!(firebaseConfig.apiKey && 
-             firebaseConfig.databaseURL && 
-             firebaseConfig.projectId &&
-             firebaseConfig.authDomain &&
-             // Ensure we have actual values, not placeholder text
-             firebaseConfig.apiKey !== 'your_api_key_here' &&
-             firebaseConfig.projectId !== 'your_project_id');
+    return database !== null && isFirebaseConfigured;
   },
 
   // Test connection
@@ -482,7 +626,7 @@ export const FirebaseUtils = {
   },
 
   // Get configuration status for debugging
-  getConfigStatus(): { configured: boolean; missing: string[] } {
+  getConfigStatus(): { configured: boolean; missing: string[]; initialized: boolean } {
     const requiredFields = [
       'apiKey',
       'authDomain', 
@@ -490,14 +634,25 @@ export const FirebaseUtils = {
       'projectId'
     ];
     
-    const missing = requiredFields.filter(field => 
-      !firebaseConfig[field as keyof typeof firebaseConfig] ||
-      firebaseConfig[field as keyof typeof firebaseConfig] === `your_${field.toLowerCase()}_here`
-    );
+    const missing = requiredFields.filter(field => {
+      const value = firebaseConfig[field as keyof typeof firebaseConfig];
+      return !value || value === '' || value === `your_${field.toLowerCase()}_here`;
+    });
     
     return {
       configured: missing.length === 0,
-      missing
+      missing,
+      initialized: database !== null
     };
+  },
+
+  // Get Firebase database instance (can be null)
+  getDatabase() {
+    return database;
+  },
+
+  // Check if we're in demo mode
+  isDemoMode(): boolean {
+    return !this.isConfigured();
   }
 }; 
