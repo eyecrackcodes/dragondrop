@@ -1,18 +1,35 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { useDrop } from 'react-dnd';
-import { Site, Employee, Role, CommissionTier } from '../types';
-import { EmployeeCard } from './EmployeeCard';
-import { EmployeeModal } from './EmployeeModal';
-import { BulkActionsModal } from './BulkActionsModal';
-import { ChangeConfirmationModal } from './ChangeConfirmationModal';
-import { IntegrationsModal } from './IntegrationsModal';
-import { useFirebaseOrgStructure, useFirebaseDragAndDrop, useFirebaseConnection, useFirebaseEmployees } from '../hooks/useFirebaseData';
-import { useMockOrgStructure, useMockDragAndDrop } from '../hooks/useMockData';
-import { importRealDataToFirebase, validateFirebaseConnection, getEmployeeCount } from '../services/firebaseImporter';
-import { externalIntegrationsService } from '../services/externalIntegrations';
-import { calculateAgentCommission } from '../utils/commissionCalculator';
-import { PlusIcon, MagnifyingGlassIcon, Squares2X2Icon, ExclamationTriangleIcon, CloudArrowUpIcon, CogIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useDroppable } from "@dnd-kit/core";
+import {
+  MagnifyingGlassIcon,
+  CloudArrowUpIcon,
+  CogIcon,
+  PlusIcon,
+  ExclamationTriangleIcon,
+  Squares2X2Icon,
+} from "@heroicons/react/24/outline";
+import { Employee, Site, Role, CommissionTier } from "../types";
+import { EmployeeCard } from "./EmployeeCard";
+import { EmployeeModal } from "./EmployeeModal";
+import { BulkActionsModal } from "./BulkActionsModal";
+import { ChangeConfirmationModal } from "./ChangeConfirmationModal";
+import { IntegrationsModal } from "./IntegrationsModal";
+import {
+  useFirebaseOrgStructure,
+  useFirebaseDragAndDrop,
+  useFirebaseEmployees,
+  useFirebaseConnection,
+} from "../hooks/useFirebaseData";
+import { useMockOrgStructure, useMockDragAndDrop } from "../hooks/useMockData";
+import {
+  importRealDataToFirebase,
+  validateFirebaseConnection,
+  getEmployeeCount,
+} from "../services/firebaseImporter";
+import { calculateAgentCommission } from "../utils/commissionCalculator";
+import { externalIntegrationsService } from "../services/externalIntegrations";
 
+// Types
 interface OrgChartProps {
   site: Site;
   showBulkActions?: boolean;
@@ -24,11 +41,12 @@ interface DropZoneProps {
   children: React.ReactNode;
   className?: string;
   canDrop?: boolean;
+  id: string;
 }
 
 interface ChangeRecord {
   id: string;
-  type: 'move' | 'promote' | 'transfer' | 'terminate' | 'create' | 'edit';
+  type: "move" | "promote" | "transfer" | "terminate" | "create" | "edit";
   employeeName: string;
   description: string;
   timestamp: number;
@@ -41,158 +59,193 @@ interface NotificationSettings {
   includeDetails: boolean;
 }
 
-const DropZone: React.FC<DropZoneProps> = ({ onDrop, accept = 'employee', children, className = '', canDrop = true }) => {
-  const [{ isOver, canDropState }, drop] = useDrop(() => ({
-    accept,
-    drop: (item: any) => {
-      console.log('🎯 Drop received:', item);
-      if (canDrop && item && (item.employee?.id || item.id)) {
-        // Handle both old and new item structures
-        const employeeId = item.employee?.id || item.id;
-        console.log('🎯 Dropping employee ID:', employeeId);
-        onDrop(employeeId);
-        return { dropped: true };
-      }
+const DropZone: React.FC<DropZoneProps> = ({
+  onDrop,
+  accept = "employee",
+  children,
+  className = "",
+  canDrop = true,
+  id,
+}) => {
+  const { setNodeRef, isOver } = useDroppable({
+    id,
+    data: {
+      onDrop,
+      accept,
+      canDrop,
     },
-    canDrop: (item) => {
-      return canDrop && item && item.employee;
-    },
-    collect: (monitor) => ({
-      isOver: monitor.isOver(),
-      canDropState: monitor.canDrop(),
-    }),
-  }));
+  });
 
   const dropZoneClass = useMemo(() => {
     if (!canDrop) return className;
-    if (isOver && canDropState) return `${className} bg-green-100 border-2 border-dashed border-green-500 rounded-lg transition-all duration-200 shadow-lg`;
-    if (isOver) return `${className} bg-red-100 border-2 border-dashed border-red-500 rounded-lg transition-all duration-200 shadow-lg`;
-    if (canDropState) return `${className} border-2 border-dashed border-blue-400 rounded-lg opacity-90 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200`;
-    return className;
-  }, [isOver, canDropState, canDrop, className]);
+    if (isOver && canDrop) return `${className} drop-zone-active`;
+    if (isOver) return `${className} drop-zone-invalid`;
+    return `${className} border-2 border-dashed border-gray-300 rounded-xl transition-all duration-300`;
+  }, [isOver, canDrop, className]);
 
   return (
-    <div ref={drop as any} className={dropZoneClass}>
+    <div ref={setNodeRef} className={dropZoneClass}>
       {children}
-      {isOver && canDropState && (
-        <div className="absolute inset-0 bg-green-500 bg-opacity-20 rounded-lg flex items-center justify-center z-10">
-          <span className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg border border-green-500 animate-pulse">
-            ✅ Drop Here
-          </span>
+      {isOver && canDrop && (
+        <div className="absolute inset-0 bg-gradient-to-br from-green-500/30 to-emerald-500/30 rounded-xl flex items-center justify-center z-10 backdrop-blur-sm">
+          <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl text-sm font-bold shadow-xl border-2 border-green-400 animate-bounce">
+            <span className="mr-2">✅</span>
+            Drop Here to Assign
+          </div>
         </div>
       )}
-      {isOver && !canDropState && (
-        <div className="absolute inset-0 bg-red-500 bg-opacity-20 rounded-lg flex items-center justify-center z-10">
-          <span className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg border border-red-500 animate-pulse">
-            ❌ Cannot Drop
-          </span>
+      {isOver && !canDrop && (
+        <div className="absolute inset-0 bg-gradient-to-br from-red-500/30 to-pink-500/30 rounded-xl flex items-center justify-center z-10 backdrop-blur-sm">
+          <div className="bg-gradient-to-r from-red-600 to-pink-600 text-white px-6 py-3 rounded-xl text-sm font-bold shadow-xl border-2 border-red-400 animate-bounce">
+            <span className="mr-2">❌</span>
+            Cannot Drop Here
+          </div>
         </div>
       )}
     </div>
   );
 };
 
-export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = false }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
-  
+export const OrgChart: React.FC<OrgChartProps> = ({
+  site,
+  showBulkActions = false,
+}) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(
+    new Set()
+  );
+
   // Modal state
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
     employee: Employee | null;
-    mode: 'view' | 'edit' | 'create';
+    mode: "view" | "edit" | "create";
   }>({
     isOpen: false,
     employee: null,
-    mode: 'view'
+    mode: "view",
   });
 
   // Team filtering state
-  const [selectedManagerId, setSelectedManagerId] = useState<string | 'all'>('all');
+  const [selectedManagerId, setSelectedManagerId] = useState<string | "all">(
+    "all"
+  );
 
   // Bulk actions modal state
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
-  
+
   // Change tracking state
   const [pendingChanges, setPendingChanges] = useState<ChangeRecord[]>([]);
   const [confirmationModalOpen, setConfirmationModalOpen] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  
+
   // Drag and drop state
   const [isDragging, setIsDragging] = useState(false);
   const [draggedEmployee, setDraggedEmployee] = useState<Employee | null>(null);
   const [showQuickAssign, setShowQuickAssign] = useState(false);
-  
+
   // Data import state
   const [isImporting, setIsImporting] = useState(false);
-  
+
   // Integrations modal state
   const [integrationsModalOpen, setIntegrationsModalOpen] = useState(false);
-  const [integrationsStatus, setIntegrationsStatus] = useState({ n8nConfigured: false, slackConfigured: false });
-  
+  const [integrationsStatus, setIntegrationsStatus] = useState({
+    n8nConfigured: false,
+    slackConfigured: false,
+  });
+
   // Check Firebase connection status
   const { isConnected, isConfigured } = useFirebaseConnection();
-  
+
   // Debug Firebase connection status
   useEffect(() => {
-    console.log('🔥 Firebase Connection Status:', { isConnected, isConfigured });
+    console.log("🔥 Firebase Connection Status:", {
+      isConnected,
+      isConfigured,
+    });
     if (!isConnected && isConfigured) {
-      console.warn('⚠️ Firebase is configured but not connected - using mock data');
+      console.warn(
+        "⚠️ Firebase is configured but not connected - using mock data"
+      );
     } else if (!isConfigured) {
-      console.warn('⚠️ Firebase is not configured - check .env file');
+      console.warn("⚠️ Firebase is not configured - check .env file");
     } else {
-      console.log('✅ Firebase is connected and ready');
+      console.log("✅ Firebase is connected and ready");
     }
   }, [isConnected, isConfigured]);
-  
+
   // Use Firebase data if available, otherwise fall back to mock data
   const firebaseOrgData = useFirebaseOrgStructure(site);
   const mockOrgData = useMockOrgStructure(site);
   const firebaseDragDrop = useFirebaseDragAndDrop();
   const mockDragDrop = useMockDragAndDrop();
-  
+
   // Select data source based on Firebase availability
-  const { directors, managers, teamLeads, agents, stats, isLoading } = isConnected ? firebaseOrgData : mockOrgData;
-  const { moveEmployee, promoteEmployee } = isConnected ? firebaseDragDrop : mockDragDrop;
-  
+  const { directors, managers, teamLeads, agents, stats, isLoading } =
+    isConnected ? firebaseOrgData : mockOrgData;
+  const { moveEmployee, promoteEmployee } = isConnected
+    ? firebaseDragDrop
+    : mockDragDrop;
+
   // Get Firebase employee operations (always call hooks to avoid conditional hook rule)
   const firebaseEmployees = useFirebaseEmployees();
-  
+
   // Create conditional refetch function (Firebase data is real-time, mock data needs manual refetch)
   const refetch = () => {
-    if (!isConnected && 'refetch' in mockOrgData) {
+    if (!isConnected && "refetch" in mockOrgData) {
       mockOrgData.refetch();
     }
     // Firebase data updates automatically via real-time listeners
   };
 
   // Get all employees for easy access
-  const allEmployees = useMemo(() => [
-    ...directors, ...managers, ...teamLeads, ...agents
-  ], [directors, managers, teamLeads, agents]);
+  const allEmployees = useMemo(
+    () => [...directors, ...managers, ...teamLeads, ...agents],
+    [directors, managers, teamLeads, agents]
+  );
 
   // Get selected employee objects
   const selectedEmployeeObjects = useMemo(() => {
-    return allEmployees.filter(emp => selectedEmployees.has(emp.id));
+    return allEmployees.filter((emp) => selectedEmployees.has(emp.id));
   }, [allEmployees, selectedEmployees]);
 
   // Filter employees based on search term
   const filteredEmployees = useMemo(() => {
-    const filterFn = (emp: any) => 
+    const filterFn = (emp: any) =>
       emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       emp.role.toLowerCase().includes(searchTerm.toLowerCase());
 
     return {
-      directors: allEmployees.filter((emp: any) => emp.role === 'Sales Director' && emp.site === site && filterFn(emp)),
-      managers: allEmployees.filter((emp: any) => emp.role === 'Sales Manager' && emp.site === site && filterFn(emp)),
-      teamLeads: allEmployees.filter((emp: any) => emp.role === 'Team Lead' && emp.site === site && emp.status !== 'terminated' && filterFn(emp)),
-      agents: allEmployees.filter((emp: any) => emp.role === 'Agent' && emp.site === site && emp.status !== 'terminated' && filterFn(emp)),
+      directors: allEmployees.filter(
+        (emp: any) =>
+          emp.role === "Sales Director" && emp.site === site && filterFn(emp)
+      ),
+      managers: allEmployees.filter(
+        (emp: any) =>
+          emp.role === "Sales Manager" && emp.site === site && filterFn(emp)
+      ),
+      teamLeads: allEmployees.filter(
+        (emp: any) =>
+          emp.role === "Team Lead" &&
+          emp.site === site &&
+          emp.status !== "terminated" &&
+          filterFn(emp)
+      ),
+      agents: allEmployees.filter(
+        (emp: any) =>
+          emp.role === "Agent" &&
+          emp.site === site &&
+          emp.status !== "terminated" &&
+          filterFn(emp)
+      ),
     };
   }, [allEmployees, site, searchTerm]);
 
   // Unassigned employees (no managerId)
   const unassignedEmployees = useMemo(() => {
-    return [...filteredEmployees.teamLeads, ...filteredEmployees.agents].filter(emp => !emp.managerId);
+    return [...filteredEmployees.teamLeads, ...filteredEmployees.agents].filter(
+      (emp) => !emp.managerId
+    );
   }, [filteredEmployees]);
 
   const handleEmployeeSelect = (employeeId: string, selected: boolean) => {
@@ -206,7 +259,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
   };
 
   const handleSelectAll = () => {
-    const allEmployeeIds = allEmployees.map(emp => emp.id);
+    const allEmployeeIds = allEmployees.map((emp) => emp.id);
     setSelectedEmployees(new Set(allEmployeeIds));
   };
 
@@ -214,260 +267,354 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
     setSelectedEmployees(new Set());
   };
 
-  const handleDrop = async (targetEmployeeId: string, droppedEmployeeId: string) => {
-    console.log('🎯 ===== HANDLE DROP START =====');
-    console.log('🎯 Target Employee ID:', targetEmployeeId);
-    console.log('🎯 Dropped Employee ID:', droppedEmployeeId);
-    console.log('🎯 Firebase Connected:', isConnected);
-    
+  const handleDrop = async (
+    targetEmployeeId: string,
+    droppedEmployeeId: string
+  ) => {
+    console.log("🎯 ===== HANDLE DROP START =====");
+    console.log("🎯 Target Employee ID:", targetEmployeeId);
+    console.log("🎯 Dropped Employee ID:", droppedEmployeeId);
+    console.log("🎯 Firebase Connected:", isConnected);
+
     if (targetEmployeeId === droppedEmployeeId) {
-      console.log('❌ HANDLE DROP FAILED: Cannot drop employee on themselves');
+      console.log("❌ HANDLE DROP FAILED: Cannot drop employee on themselves");
       return;
     }
-    
+
     // Find the dropped employee and target employee
-    const droppedEmployee = allEmployees.find(emp => emp.id === droppedEmployeeId);
-    const targetEmployee = allEmployees.find(emp => emp.id === targetEmployeeId);
-    
-    console.log('🔍 Found Employees:', {
+    const droppedEmployee = allEmployees.find(
+      (emp) => emp.id === droppedEmployeeId
+    );
+    const targetEmployee = allEmployees.find(
+      (emp) => emp.id === targetEmployeeId
+    );
+
+    console.log("🔍 Found Employees:", {
       droppedFound: !!droppedEmployee,
       targetFound: !!targetEmployee,
       droppedName: droppedEmployee?.name,
-      targetName: targetEmployee?.name
+      targetName: targetEmployee?.name,
     });
-    
+
     if (!droppedEmployee || !targetEmployee) {
-      console.error('❌ HANDLE DROP FAILED: Employee not found:', { 
-        droppedEmployee: droppedEmployee ? 'FOUND' : 'NOT FOUND', 
-        targetEmployee: targetEmployee ? 'FOUND' : 'NOT FOUND' 
+      console.error("❌ HANDLE DROP FAILED: Employee not found:", {
+        droppedEmployee: droppedEmployee ? "FOUND" : "NOT FOUND",
+        targetEmployee: targetEmployee ? "FOUND" : "NOT FOUND",
       });
       return;
     }
 
     // Business logic for valid moves
-    console.log('🔍 Running validation...');
+    console.log("🔍 Running validation...");
     const canMove = validateMove(droppedEmployee, targetEmployee);
-    console.log('🔍 Validation result:', canMove);
-    
+    console.log("🔍 Validation result:", canMove);
+
     if (!canMove.valid) {
-      console.log('❌ HANDLE DROP FAILED: Validation failed:', canMove.reason);
+      console.log("❌ HANDLE DROP FAILED: Validation failed:", canMove.reason);
       alert(`❌ Cannot move employee: ${canMove.reason}`);
       return;
     }
-    
-    console.log('✅ VALIDATION PASSED - Proceeding with move...');
-    
+
+    console.log("✅ VALIDATION PASSED - Proceeding with move...");
+
     try {
       // Create timestamp for the change
       const changeTimestamp = Date.now();
       const changeDate = new Date(changeTimestamp);
-      
+
       // Update the employee's manager with timestamp
       const updatedEmployee = {
         ...droppedEmployee,
         managerId: targetEmployeeId,
         lastModified: changeTimestamp,
-        lastModifiedBy: 'admin', // You could add user authentication later
+        lastModifiedBy: "admin", // You could add user authentication later
         lastAction: `Moved to report to ${targetEmployee.name}`,
-        lastActionDate: changeTimestamp
+        lastActionDate: changeTimestamp,
       };
 
-      console.log('🔄 Updating employee:', updatedEmployee);
+      console.log("🔄 Updating employee:", updatedEmployee);
 
       if (isConnected) {
         // Update in Firebase with enhanced data
-        await firebaseEmployees.updateEmployee(droppedEmployeeId, updatedEmployee);
-        console.log('✅ Successfully updated employee in Firebase:', droppedEmployee.name);
-        
+        await firebaseEmployees.updateEmployee(
+          droppedEmployeeId,
+          updatedEmployee
+        );
+        console.log(
+          "✅ Successfully updated employee in Firebase:",
+          droppedEmployee.name
+        );
+
         // Create a change log entry in Firebase
         const changeLogEntry = {
           employeeId: droppedEmployeeId,
           employeeName: droppedEmployee.name,
-          action: 'move',
+          action: "move",
           details: `Moved ${droppedEmployee.name} (${droppedEmployee.role}) to report to ${targetEmployee.name} (${targetEmployee.role})`,
-          previousManagerId: droppedEmployee.managerId || 'unassigned',
+          previousManagerId: droppedEmployee.managerId || "unassigned",
           newManagerId: targetEmployeeId,
           timestamp: changeTimestamp,
-          performedBy: 'admin'
+          performedBy: "admin",
         };
-        
+
         // Log the change (using Firebase's built-in push to create unique ID)
         try {
-          const { database } = await import('../services/firebase');
+          const { database } = await import("../services/firebase");
           if (database) {
-            const { ref, push, set } = await import('firebase/database');
-            const changeLogRef = ref(database, 'changeLog');
+            const { ref, push, set } = await import("firebase/database");
+            const changeLogRef = ref(database, "changeLog");
             const newChangeRef = push(changeLogRef);
             await set(newChangeRef, changeLogEntry);
-            console.log('📝 Change logged to Firebase');
+            console.log("📝 Change logged to Firebase");
           }
         } catch (logError) {
-          console.warn('⚠️ Failed to log change:', logError);
+          console.warn("⚠️ Failed to log change:", logError);
         }
-        
       } else {
-        console.log('📝 Mock mode - Updated employee:', droppedEmployee.name);
+        console.log("📝 Mock mode - Updated employee:", droppedEmployee.name);
       }
 
       // Also add to pending changes for UI tracking/notifications
       addPendingChange({
-        type: 'move',
+        type: "move",
         employeeName: droppedEmployee.name,
-        description: `Moved ${droppedEmployee.name} (${droppedEmployee.role}) to report to ${targetEmployee.name} (${targetEmployee.role}) at ${changeDate.toLocaleString()}`
+        description: `Moved ${droppedEmployee.name} (${
+          droppedEmployee.role
+        }) to report to ${targetEmployee.name} (${
+          targetEmployee.role
+        }) at ${changeDate.toLocaleString()}`,
       });
-      
+
       // Show success feedback with timestamp
-      console.log(`✅ ${droppedEmployee.name} has been moved under ${targetEmployee.name} at ${changeDate.toLocaleString()}`);
-      
+      console.log(
+        `✅ ${droppedEmployee.name} has been moved under ${
+          targetEmployee.name
+        } at ${changeDate.toLocaleString()}`
+      );
+
       // Don't show alert immediately - let the real-time update handle the feedback
       setTimeout(() => {
-        console.log('🔄 Move operation completed successfully');
+        console.log("🔄 Move operation completed successfully");
       }, 500);
-      
     } catch (error) {
-      console.error('❌ Error updating employee:', error);
-      alert(`❌ Failed to move ${droppedEmployee.name}. Please try again. Error: ${error}`);
+      console.error("❌ Error updating employee:", error);
+      alert(
+        `❌ Failed to move ${droppedEmployee.name}. Please try again. Error: ${error}`
+      );
     }
   };
 
   const validateMove = (droppedEmployee: any, targetEmployee: any) => {
-    console.log('🔍 ===== VALIDATE MOVE START =====');
-    console.log('🔍 Dropped Employee:', {
+    console.log("🔍 ===== VALIDATE MOVE START =====");
+    console.log("🔍 Dropped Employee:", {
       id: droppedEmployee?.id,
       name: droppedEmployee?.name,
       role: droppedEmployee?.role,
-      currentManagerId: droppedEmployee?.managerId
+      currentManagerId: droppedEmployee?.managerId,
     });
-    console.log('🔍 Target Employee:', {
+    console.log("🔍 Target Employee:", {
       id: targetEmployee?.id,
       name: targetEmployee?.name,
-      role: targetEmployee?.role
+      role: targetEmployee?.role,
     });
 
     // Directors can't report to anyone
-    if (droppedEmployee.role === 'Sales Director') {
-      console.log('❌ VALIDATION FAILED: Directors cannot be reassigned');
-      return { valid: false, reason: 'Directors cannot be reassigned' };
+    if (droppedEmployee.role === "Sales Director") {
+      console.log("❌ VALIDATION FAILED: Directors cannot be reassigned");
+      return { valid: false, reason: "Directors cannot be reassigned" };
     }
-    
+
     // Can't move to self
     if (droppedEmployee.id === targetEmployee.id) {
-      console.log('❌ VALIDATION FAILED: Cannot assign employee to themselves');
-      return { valid: false, reason: 'Cannot assign employee to themselves' };
+      console.log("❌ VALIDATION FAILED: Cannot assign employee to themselves");
+      return { valid: false, reason: "Cannot assign employee to themselves" };
     }
-    
+
     // Allow horizontal moves for agents and team leads between different managers
-    console.log('🎯 Checking horizontal move rules...');
-    
-    if (droppedEmployee.role === 'Agent' && targetEmployee.role === 'Sales Manager') {
+    console.log("🎯 Checking horizontal move rules...");
+
+    if (
+      droppedEmployee.role === "Agent" &&
+      targetEmployee.role === "Sales Manager"
+    ) {
       // Allow agents to move between different sales managers
       if (droppedEmployee.managerId === targetEmployee.id) {
-        console.log('❌ VALIDATION FAILED: Agent is already assigned to this manager');
-        return { valid: false, reason: 'Agent is already assigned to this manager' };
+        console.log(
+          "❌ VALIDATION FAILED: Agent is already assigned to this manager"
+        );
+        return {
+          valid: false,
+          reason: "Agent is already assigned to this manager",
+        };
       }
-      console.log('✅ VALIDATION PASSED: Agent can move to different Sales Manager');
-      return { valid: true, reason: 'Agent horizontal move to different manager allowed' };
+      console.log(
+        "✅ VALIDATION PASSED: Agent can move to different Sales Manager"
+      );
+      return {
+        valid: true,
+        reason: "Agent horizontal move to different manager allowed",
+      };
     }
-    
-    if (droppedEmployee.role === 'Team Lead' && targetEmployee.role === 'Sales Manager') {
+
+    if (
+      droppedEmployee.role === "Team Lead" &&
+      targetEmployee.role === "Sales Manager"
+    ) {
       // Allow team leads to move between different sales managers
       if (droppedEmployee.managerId === targetEmployee.id) {
-        console.log('❌ VALIDATION FAILED: Team Lead is already assigned to this manager');
-        return { valid: false, reason: 'Team Lead is already assigned to this manager' };
+        console.log(
+          "❌ VALIDATION FAILED: Team Lead is already assigned to this manager"
+        );
+        return {
+          valid: false,
+          reason: "Team Lead is already assigned to this manager",
+        };
       }
-      console.log('✅ VALIDATION PASSED: Team Lead can move to different Sales Manager');
-      return { valid: true, reason: 'Team Lead horizontal move to different manager allowed' };
+      console.log(
+        "✅ VALIDATION PASSED: Team Lead can move to different Sales Manager"
+      );
+      return {
+        valid: true,
+        reason: "Team Lead horizontal move to different manager allowed",
+      };
     }
-    
-    if (droppedEmployee.role === 'Sales Manager' && targetEmployee.role === 'Sales Director') {
+
+    if (
+      droppedEmployee.role === "Sales Manager" &&
+      targetEmployee.role === "Sales Director"
+    ) {
       // Allow sales managers to report to directors
       if (droppedEmployee.managerId === targetEmployee.id) {
-        console.log('❌ VALIDATION FAILED: Sales Manager is already assigned to this director');
-        return { valid: false, reason: 'Sales Manager is already assigned to this director' };
+        console.log(
+          "❌ VALIDATION FAILED: Sales Manager is already assigned to this director"
+        );
+        return {
+          valid: false,
+          reason: "Sales Manager is already assigned to this director",
+        };
       }
-      console.log('✅ VALIDATION PASSED: Sales Manager can report to Sales Director');
-      return { valid: true, reason: 'Sales Manager to Director assignment allowed' };
+      console.log(
+        "✅ VALIDATION PASSED: Sales Manager can report to Sales Director"
+      );
+      return {
+        valid: true,
+        reason: "Sales Manager to Director assignment allowed",
+      };
     }
-    
+
     // Hierarchy levels (lower index = higher level) - for reference only
-    const hierarchy = ['Sales Director', 'Sales Manager', 'Team Lead', 'Agent'];
+    const hierarchy = ["Sales Director", "Sales Manager", "Team Lead", "Agent"];
     const droppedLevel = hierarchy.indexOf(droppedEmployee.role);
     const targetLevel = hierarchy.indexOf(targetEmployee.role);
-    
-    console.log('📊 Hierarchy reference:', { 
-      droppedLevel, 
-      targetLevel, 
-      droppedRole: droppedEmployee.role, 
-      targetRole: targetEmployee.role 
+
+    console.log("📊 Hierarchy reference:", {
+      droppedLevel,
+      targetLevel,
+      droppedRole: droppedEmployee.role,
+      targetRole: targetEmployee.role,
     });
-    
+
     // Block invalid combinations
-    if (droppedEmployee.role === 'Agent' && targetEmployee.role !== 'Sales Manager') {
-      console.log('❌ VALIDATION FAILED: Agents can only report to Sales Managers');
-      return { valid: false, reason: 'Agents can only report to Sales Managers' };
+    if (
+      droppedEmployee.role === "Agent" &&
+      targetEmployee.role !== "Sales Manager"
+    ) {
+      console.log(
+        "❌ VALIDATION FAILED: Agents can only report to Sales Managers"
+      );
+      return {
+        valid: false,
+        reason: "Agents can only report to Sales Managers",
+      };
     }
-    
-    if (droppedEmployee.role === 'Team Lead' && targetEmployee.role !== 'Sales Manager') {
-      console.log('❌ VALIDATION FAILED: Team Leads can only report to Sales Managers');
-      return { valid: false, reason: 'Team Leads can only report to Sales Managers' };
+
+    if (
+      droppedEmployee.role === "Team Lead" &&
+      targetEmployee.role !== "Sales Manager"
+    ) {
+      console.log(
+        "❌ VALIDATION FAILED: Team Leads can only report to Sales Managers"
+      );
+      return {
+        valid: false,
+        reason: "Team Leads can only report to Sales Managers",
+      };
     }
-    
-    if (droppedEmployee.role === 'Sales Manager' && targetEmployee.role !== 'Sales Director') {
-      console.log('❌ VALIDATION FAILED: Sales Managers can only report to Sales Directors');
-      return { valid: false, reason: 'Sales Managers can only report to Sales Directors' };
+
+    if (
+      droppedEmployee.role === "Sales Manager" &&
+      targetEmployee.role !== "Sales Director"
+    ) {
+      console.log(
+        "❌ VALIDATION FAILED: Sales Managers can only report to Sales Directors"
+      );
+      return {
+        valid: false,
+        reason: "Sales Managers can only report to Sales Directors",
+      };
     }
-    
+
     // Prevent same level moves between peers (except the specific allowed cases above)
     if (targetLevel === droppedLevel) {
-      console.log('❌ VALIDATION FAILED: Same level peer assignment not allowed');
-      return { valid: false, reason: `Cannot assign ${droppedEmployee.role} to another ${targetEmployee.role}` };
+      console.log(
+        "❌ VALIDATION FAILED: Same level peer assignment not allowed"
+      );
+      return {
+        valid: false,
+        reason: `Cannot assign ${droppedEmployee.role} to another ${targetEmployee.role}`,
+      };
     }
-    
-    console.log('❌ VALIDATION FAILED: No valid rule matched');
-    return { valid: false, reason: 'Move not allowed by business rules' };
+
+    console.log("❌ VALIDATION FAILED: No valid rule matched");
+    return { valid: false, reason: "Move not allowed by business rules" };
   };
 
   const handlePromote = (employeeId: string, currentRole: string) => {
     const promotionMap: Record<string, string> = {
-      'Agent': 'Team Lead',
-      'Team Lead': 'Sales Manager',
-      'Sales Manager': 'Sales Director'
+      Agent: "Team Lead",
+      "Team Lead": "Sales Manager",
+      "Sales Manager": "Sales Director",
     };
-    
+
     const newRole = promotionMap[currentRole];
-    const employee = allEmployees.find(emp => emp.id === employeeId);
-    
+    const employee = allEmployees.find((emp) => emp.id === employeeId);
+
     if (newRole && employee) {
       addPendingChange({
-        type: 'promote',
+        type: "promote",
         employeeName: employee.name,
-        description: `Promote ${employee.name} from ${currentRole} to ${newRole}`
+        description: `Promote ${employee.name} from ${currentRole} to ${newRole}`,
       });
-      
-      alert(`📝 Change queued: ${employee.name} will be promoted to ${newRole}`);
+
+      alert(
+        `📝 Change queued: ${employee.name} will be promoted to ${newRole}`
+      );
     }
   };
 
   // Modal handlers
-  const openModal = (employee: Employee | null, mode: 'view' | 'edit' | 'create') => {
+  const openModal = (
+    employee: Employee | null,
+    mode: "view" | "edit" | "create"
+  ) => {
     setModalState({ isOpen: true, employee, mode });
   };
 
   const closeModal = () => {
-    setModalState({ isOpen: false, employee: null, mode: 'view' });
+    setModalState({ isOpen: false, employee: null, mode: "view" });
   };
 
   const handleEmployeeSave = async (updatedEmployee: Employee) => {
     try {
-      if (modalState.mode === 'create') {
+      if (modalState.mode === "create") {
         // Handle creation immediately (new employees)
         if (isConnected) {
           const { id, ...employeeDataWithoutId } = updatedEmployee;
           await firebaseEmployees.createEmployee(employeeDataWithoutId);
-          console.log('✅ Created employee:', updatedEmployee.name);
+          console.log("✅ Created employee:", updatedEmployee.name);
           alert(`✅ ${updatedEmployee.name} has been created successfully!`);
         } else {
-          console.log('📝 Mock mode - Employee created:', updatedEmployee);
+          console.log("📝 Mock mode - Employee created:", updatedEmployee);
           alert(`📝 Mock mode: ${updatedEmployee.name} has been created!`);
           refetch();
         }
@@ -480,84 +627,115 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
         // Find what changed
         const changes: string[] = [];
         if (originalEmployee.name !== updatedEmployee.name) {
-          changes.push(`Name: "${originalEmployee.name}" → "${updatedEmployee.name}"`);
+          changes.push(
+            `Name: "${originalEmployee.name}" → "${updatedEmployee.name}"`
+          );
         }
         if (originalEmployee.role !== updatedEmployee.role) {
-          changes.push(`Role: "${originalEmployee.role}" → "${updatedEmployee.role}"`);
+          changes.push(
+            `Role: "${originalEmployee.role}" → "${updatedEmployee.role}"`
+          );
         }
         if (originalEmployee.site !== updatedEmployee.site) {
-          changes.push(`Site: "${originalEmployee.site}" → "${updatedEmployee.site}"`);
+          changes.push(
+            `Site: "${originalEmployee.site}" → "${updatedEmployee.site}"`
+          );
         }
         if (originalEmployee.startDate !== updatedEmployee.startDate) {
-          changes.push(`Start Date: "${new Date(originalEmployee.startDate).toLocaleDateString()}" → "${new Date(updatedEmployee.startDate).toLocaleDateString()}"`);
+          changes.push(
+            `Start Date: "${new Date(
+              originalEmployee.startDate
+            ).toLocaleDateString()}" → "${new Date(
+              updatedEmployee.startDate
+            ).toLocaleDateString()}"`
+          );
         }
-        if (originalEmployee.commissionTier !== updatedEmployee.commissionTier) {
-          changes.push(`Commission Tier: "${originalEmployee.commissionTier}" → "${updatedEmployee.commissionTier}"`);
+        if (
+          originalEmployee.commissionTier !== updatedEmployee.commissionTier
+        ) {
+          changes.push(
+            `Commission Tier: "${originalEmployee.commissionTier}" → "${updatedEmployee.commissionTier}"`
+          );
         }
 
         if (changes.length > 0) {
           // Add to pending changes
           addPendingChange({
-            type: 'edit',
+            type: "edit",
             employeeName: originalEmployee.name,
-            description: `Edit ${originalEmployee.name}: ${changes.join(', ')}`
+            description: `Edit ${originalEmployee.name}: ${changes.join(", ")}`,
           });
 
           // Store the updated employee data for later application
-          const existingChanges = JSON.parse(localStorage.getItem('pending_employee_edits') || '{}');
+          const existingChanges = JSON.parse(
+            localStorage.getItem("pending_employee_edits") || "{}"
+          );
           existingChanges[originalEmployee.id] = updatedEmployee;
-          localStorage.setItem('pending_employee_edits', JSON.stringify(existingChanges));
+          localStorage.setItem(
+            "pending_employee_edits",
+            JSON.stringify(existingChanges)
+          );
 
-          alert(`📝 Changes queued for ${originalEmployee.name}! Review and apply changes when ready.`);
+          alert(
+            `📝 Changes queued for ${originalEmployee.name}! Review and apply changes when ready.`
+          );
         } else {
-          alert('No changes detected.');
+          alert("No changes detected.");
         }
-        
+
         closeModal();
       }
     } catch (error) {
-      console.error('❌ Error saving employee:', error);
-      alert(`❌ Failed to ${modalState.mode === 'create' ? 'create' : 'update'} ${updatedEmployee.name}. Please try again.`);
+      console.error("❌ Error saving employee:", error);
+      alert(
+        `❌ Failed to ${modalState.mode === "create" ? "create" : "update"} ${
+          updatedEmployee.name
+        }. Please try again.`
+      );
     }
   };
 
   const handleEmployeeDelete = (employeeId: string) => {
     // In a real app, this would delete from the database
-    console.log('Deleting employee:', employeeId);
+    console.log("Deleting employee:", employeeId);
     setTimeout(() => {
       refetch();
-      alert('Employee has been deleted.');
+      alert("Employee has been deleted.");
     }, 200);
   };
 
   const handleEdit = (employee: Employee) => {
-    openModal(employee, 'edit');
+    openModal(employee, "edit");
   };
 
   const handleView = (employee: Employee) => {
-    openModal(employee, 'view');
+    openModal(employee, "view");
   };
 
   const handleTransfer = (employee: any) => {
-    const newSite = employee.site === 'Austin' ? 'Charlotte' : 'Austin';
-    
+    const newSite = employee.site === "Austin" ? "Charlotte" : "Austin";
+
     addPendingChange({
-      type: 'transfer',
+      type: "transfer",
       employeeName: employee.name,
-      description: `Transfer ${employee.name} from ${employee.site} to ${newSite} site`
+      description: `Transfer ${employee.name} from ${employee.site} to ${newSite} site`,
     });
-    
-    alert(`📝 Change queued: ${employee.name} will be transferred to ${newSite} site`);
+
+    alert(
+      `📝 Change queued: ${employee.name} will be transferred to ${newSite} site`
+    );
   };
 
   const handleTerminate = (employee: any) => {
-    if (window.confirm(`Are you sure you want to terminate ${employee.name}?`)) {
+    if (
+      window.confirm(`Are you sure you want to terminate ${employee.name}?`)
+    ) {
       addPendingChange({
-        type: 'terminate',
+        type: "terminate",
         employeeName: employee.name,
-        description: `Terminate ${employee.name} (${employee.role}) - ${employee.site} site`
+        description: `Terminate ${employee.name} (${employee.role}) - ${employee.site} site`,
       });
-      
+
       alert(`📝 Change queued: ${employee.name} will be terminated`);
     }
   };
@@ -585,9 +763,12 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
     }, 500);
   };
 
-  const handleBulkUpdateCommission = async (employeeIds: string[], tier: CommissionTier) => {
+  const handleBulkUpdateCommission = async (
+    employeeIds: string[],
+    tier: CommissionTier
+  ) => {
     // Simulate bulk commission update
-    console.log('Bulk commission update:', employeeIds, tier);
+    console.log("Bulk commission update:", employeeIds, tier);
     setTimeout(() => {
       refetch();
       setSelectedEmployees(new Set());
@@ -597,7 +778,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
   const handleBulkTerminate = async (employeeIds: string[]) => {
     // Simulate bulk termination
     for (const employeeId of employeeIds) {
-      moveEmployee.mutate({ employeeId, status: 'terminated' });
+      moveEmployee.mutate({ employeeId, status: "terminated" });
     }
     setTimeout(() => {
       refetch();
@@ -605,7 +786,10 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
     }, 500);
   };
 
-  const handleBulkReassign = async (employeeIds: string[], newManagerId: string) => {
+  const handleBulkReassign = async (
+    employeeIds: string[],
+    newManagerId: string
+  ) => {
     // Simulate bulk reassignment
     for (const employeeId of employeeIds) {
       moveEmployee.mutate({ employeeId, newManagerId });
@@ -617,72 +801,97 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
   };
 
   // Change tracking functions
-  const addPendingChange = (change: Omit<ChangeRecord, 'id' | 'timestamp'>) => {
+  const addPendingChange = (change: Omit<ChangeRecord, "id" | "timestamp">) => {
     const newChange: ChangeRecord = {
       ...change,
       id: `change-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
-    setPendingChanges(prev => [...prev, newChange]);
+    setPendingChanges((prev) => [...prev, newChange]);
     // hasUnsavedChanges is now managed by useEffect
   };
 
   const clearPendingChanges = () => {
     setPendingChanges([]);
     // Also clear pending employee edits
-    localStorage.removeItem('pending_employee_edits');
+    localStorage.removeItem("pending_employee_edits");
     // hasUnsavedChanges is now managed by useEffect
   };
 
   // Get total pending changes including edits
   const getPendingChangesCount = () => {
-    const pendingEdits = JSON.parse(localStorage.getItem('pending_employee_edits') || '{}');
+    const pendingEdits = JSON.parse(
+      localStorage.getItem("pending_employee_edits") || "{}"
+    );
     return pendingChanges.length + Object.keys(pendingEdits).length;
   };
 
   const getTotalPendingChanges = () => {
-    const pendingEdits = JSON.parse(localStorage.getItem('pending_employee_edits') || '{}');
-    const editChanges = Object.entries(pendingEdits).map(([employeeId, updatedEmployee]) => ({
-      id: `edit-${employeeId}`,
-      type: 'edit' as const,
-      employeeName: (updatedEmployee as Employee).name,
-      description: `Edit ${(updatedEmployee as Employee).name}`,
-      timestamp: Date.now(),
-    }));
+    const pendingEdits = JSON.parse(
+      localStorage.getItem("pending_employee_edits") || "{}"
+    );
+    const editChanges = Object.entries(pendingEdits).map(
+      ([employeeId, updatedEmployee]) => ({
+        id: `edit-${employeeId}`,
+        type: "edit" as const,
+        employeeName: (updatedEmployee as Employee).name,
+        description: `Edit ${(updatedEmployee as Employee).name}`,
+        timestamp: Date.now(),
+      })
+    );
     return [...pendingChanges, ...editChanges];
   };
 
-  const applyAllChanges = async (notificationSettings: NotificationSettings) => {
+  const applyAllChanges = async (
+    notificationSettings: NotificationSettings
+  ) => {
     // In a real app, this would apply all changes to the database
-    console.log('Applying changes:', pendingChanges);
-    console.log('Notification settings:', notificationSettings);
-    
+    console.log("Applying changes:", pendingChanges);
+    console.log("Notification settings:", notificationSettings);
+
     // Apply pending employee edits first
-    const pendingEdits = JSON.parse(localStorage.getItem('pending_employee_edits') || '{}');
+    const pendingEdits = JSON.parse(
+      localStorage.getItem("pending_employee_edits") || "{}"
+    );
     for (const [employeeId, updatedEmployee] of Object.entries(pendingEdits)) {
       try {
         if (isConnected) {
-          await firebaseEmployees.updateEmployee(employeeId, updatedEmployee as Employee);
-          console.log('✅ Applied edit for employee:', (updatedEmployee as Employee).name);
+          await firebaseEmployees.updateEmployee(
+            employeeId,
+            updatedEmployee as Employee
+          );
+          console.log(
+            "✅ Applied edit for employee:",
+            (updatedEmployee as Employee).name
+          );
         } else {
-          console.log('📝 Mock mode - Applied edit for employee:', (updatedEmployee as Employee).name);
+          console.log(
+            "📝 Mock mode - Applied edit for employee:",
+            (updatedEmployee as Employee).name
+          );
         }
       } catch (error) {
-        console.error('❌ Failed to apply edit for employee:', employeeId, error);
+        console.error(
+          "❌ Failed to apply edit for employee:",
+          employeeId,
+          error
+        );
       }
     }
-    
+
     // Clear pending edits
-    localStorage.removeItem('pending_employee_edits');
-    
+    localStorage.removeItem("pending_employee_edits");
+
     // Simulate applying other changes and send external notifications
     for (const change of pendingChanges) {
       // Apply each change based on type
       console.log(`Applying ${change.type} for ${change.employeeName}`);
-      
+
       // Send external notifications for each change
       try {
-        const employee = allEmployees.find(emp => emp.name === change.employeeName);
+        const employee = allEmployees.find(
+          (emp) => emp.name === change.employeeName
+        );
         if (employee) {
           await externalIntegrationsService.notifyChange(
             change.type as any,
@@ -692,7 +901,9 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
               role: employee.role,
               site: employee.site,
               managerId: employee.managerId,
-              managerName: allEmployees.find(emp => emp.id === employee.managerId)?.name,
+              managerName: allEmployees.find(
+                (emp) => emp.id === employee.managerId
+              )?.name,
             },
             {
               description: change.description,
@@ -705,34 +916,47 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
           );
         }
       } catch (error) {
-        console.error('Failed to send external notification:', error);
+        console.error("Failed to send external notification:", error);
       }
     }
-    
+
     // Send notifications
     if (notificationSettings.sendSlack) {
-      console.log('Sending Slack notifications to:', notificationSettings.recipients);
+      console.log(
+        "Sending Slack notifications to:",
+        notificationSettings.recipients
+      );
       // Simulate Slack API call
       setTimeout(() => {
-        alert(`📱 Slack notifications sent! ${pendingChanges.length} changes communicated to team.`);
+        alert(
+          `📱 Slack notifications sent! ${pendingChanges.length} changes communicated to team.`
+        );
       }, 500);
     }
-    
+
     if (notificationSettings.sendEmail) {
-      console.log('Sending email notifications to:', notificationSettings.recipients);
+      console.log(
+        "Sending email notifications to:",
+        notificationSettings.recipients
+      );
       // Simulate email API call
       setTimeout(() => {
-        alert(`📧 Email notifications sent! ${pendingChanges.length} changes documented.`);
+        alert(
+          `📧 Email notifications sent! ${pendingChanges.length} changes documented.`
+        );
       }, 1000);
     }
-    
+
     // Clear pending changes and refresh data
     clearPendingChanges();
     setConfirmationModalOpen(false);
     refetch();
-    
-    const totalChanges = pendingChanges.length + Object.keys(pendingEdits).length;
-    alert(`✅ Successfully applied ${totalChanges} changes and sent external notifications!`);
+
+    const totalChanges =
+      pendingChanges.length + Object.keys(pendingEdits).length;
+    alert(
+      `✅ Successfully applied ${totalChanges} changes and sent external notifications!`
+    );
   };
 
   const handleShowConfirmation = () => {
@@ -740,31 +964,37 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
     if (totalPending > 0) {
       setConfirmationModalOpen(true);
     } else {
-      alert('No pending changes to confirm.');
+      alert("No pending changes to confirm.");
     }
   };
 
   // Drag and drop handlers
   const handleDragStart = (employee: Employee) => {
-    console.log('🎯 ===== DRAG START =====');
-    console.log('🎯 Employee being dragged:', employee.name, '(', employee.role, ')');
-    console.log('🎯 Setting isDragging to true');
-    console.log('🎯 Setting draggedEmployee to:', employee);
+    console.log("🎯 ===== DRAG START =====");
+    console.log(
+      "🎯 Employee being dragged:",
+      employee.name,
+      "(",
+      employee.role,
+      ")"
+    );
+    console.log("🎯 Setting isDragging to true");
+    console.log("🎯 Setting draggedEmployee to:", employee);
     setIsDragging(true);
     setDraggedEmployee(employee);
   };
 
   const handleDragEnd = () => {
-    console.log('🎯 ===== DRAG END =====');
-    console.log('🎯 Setting isDragging to false');
+    console.log("🎯 ===== DRAG END =====");
+    console.log("🎯 Setting isDragging to false");
     setIsDragging(false);
     // Don't immediately clear draggedEmployee - let them use quick assign
     setTimeout(() => {
       if (!showQuickAssign) {
-        console.log('🎯 Clearing draggedEmployee');
+        console.log("🎯 Clearing draggedEmployee");
         setDraggedEmployee(null);
       } else {
-        console.log('🎯 Keeping draggedEmployee for quick assign');
+        console.log("🎯 Keeping draggedEmployee for quick assign");
         // Show quick assign modal for 3 seconds after drag ends
         setShowQuickAssign(true);
         setTimeout(() => {
@@ -777,7 +1007,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
 
   const handleQuickAssign = (managerId: string) => {
     if (draggedEmployee) {
-      const manager = allEmployees.find(emp => emp.id === managerId);
+      const manager = allEmployees.find((emp) => emp.id === managerId);
       if (manager) {
         handleDrop(managerId, draggedEmployee.id);
       }
@@ -803,20 +1033,20 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
   const handleImportRealData = async () => {
     try {
       setIsImporting(true);
-      
+
       // Get expected employee count
       const expectedCount = await getEmployeeCount();
-      
+
       const confirmed = window.confirm(
         `🚀 Import Real Organizational Data\n\n` +
-        `This will import ${expectedCount} employees from your real organizational structure:\n` +
-        `• Steve Kelley (Austin Director)\n` +
-        `• Trent Terrell (Charlotte Director)\n` +
-        `• All managers, team leads, and agents\n\n` +
-        `⚠️ WARNING: This will replace all current data!\n\n` +
-        `Continue with import?`
+          `This will import ${expectedCount} employees from your real organizational structure:\n` +
+          `• Steve Kelley (Austin Director)\n` +
+          `• Trent Terrell (Charlotte Director)\n` +
+          `• All managers, team leads, and agents\n\n` +
+          `⚠️ WARNING: This will replace all current data!\n\n` +
+          `Continue with import?`
       );
-      
+
       if (!confirmed) {
         setIsImporting(false);
         return;
@@ -825,29 +1055,34 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
       // Validate Firebase connection
       const isConnected = await validateFirebaseConnection();
       if (!isConnected) {
-        alert('❌ Firebase connection failed. Please check your configuration.');
+        alert(
+          "❌ Firebase connection failed. Please check your configuration."
+        );
         setIsImporting(false);
         return;
       }
 
       // Import the data
       await importRealDataToFirebase();
-      
+
       // Refresh the view
       refetch();
-      
-      alert('✅ Successfully imported real organizational data! Refresh the page to see all employees.');
-      
+
+      alert(
+        "✅ Successfully imported real organizational data! Refresh the page to see all employees."
+      );
     } catch (error) {
-      console.error('Import failed:', error);
-      alert('❌ Import failed. Please check the console for details.');
+      console.error("Import failed:", error);
+      alert("❌ Import failed. Please check the console for details.");
     } finally {
       setIsImporting(false);
     }
   };
 
   // State for view toggle
-  const [viewMode, setViewMode] = useState<'detailed' | 'at-glance' | 'bulk-manage'>('detailed');
+  const [viewMode, setViewMode] = useState<
+    "detailed" | "at-glance" | "bulk-manage" | "table"
+  >("detailed"); // Default to cards view for drag-and-drop functionality
 
   // Check integration status on mount
   useEffect(() => {
@@ -857,7 +1092,9 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
 
   // Check for unsaved changes (including edits)
   const checkForUnsavedChanges = useCallback(() => {
-    const pendingEdits = JSON.parse(localStorage.getItem('pending_employee_edits') || '{}');
+    const pendingEdits = JSON.parse(
+      localStorage.getItem("pending_employee_edits") || "{}"
+    );
     const hasPendingEdits = Object.keys(pendingEdits).length > 0;
     setHasUnsavedChanges(pendingChanges.length > 0 || hasPendingEdits);
   }, [pendingChanges]);
@@ -874,89 +1111,76 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
     return () => clearInterval(interval);
   }, [checkForUnsavedChanges]);
 
-  // Auto-scroll functionality for drag and drop
+  // Enhanced scroll behavior for better navigation - FIXED
+  useEffect(() => {
+    // Remove custom wheel handling that interferes with normal scrolling
+    // Let the browser handle natural scrolling behavior
+    return () => {
+      // Cleanup function - no custom wheel handlers needed
+    };
+  }, []);
+
+  // Auto-scroll functionality for drag and drop only - SIMPLIFIED
   useEffect(() => {
     if (!isDragging) return;
 
+    console.log("🖱️ Setting up auto-scroll for drag and drop");
+
+    // Auto-scroll functionality for drag and drop
     let animationFrame: number;
     let isScrolling = false;
-    
+
     const handleMouseMove = (e: MouseEvent) => {
       if (isScrolling) return; // Prevent multiple scroll animations
-      
-      const scrollThreshold = 80; // pixels from edge
-      const scrollSpeed = 20; // pixels per scroll
-      const { clientY, clientX } = e;
-      const windowHeight = window.innerHeight;
+
+      const scrollThreshold = 100; // pixels from edge
+      const scrollSpeed = 15; // pixels per scroll
+      const { clientX, clientY } = e;
       const windowWidth = window.innerWidth;
-      
+      const windowHeight = window.innerHeight;
+
       let scrollX = 0;
       let scrollY = 0;
-      
+
       // Vertical scrolling
       if (clientY < scrollThreshold) {
-        // Near top - scroll up
         scrollY = -scrollSpeed;
       } else if (clientY > windowHeight - scrollThreshold) {
-        // Near bottom - scroll down
         scrollY = scrollSpeed;
       }
-      
+
       // Horizontal scrolling
       if (clientX < scrollThreshold) {
-        // Near left - scroll left
         scrollX = -scrollSpeed;
       } else if (clientX > windowWidth - scrollThreshold) {
-        // Near right - scroll right
         scrollX = scrollSpeed;
       }
-      
+
       // Perform the scroll if needed
       if (scrollX !== 0 || scrollY !== 0) {
         isScrolling = true;
-        
+
         const smoothScroll = () => {
           window.scrollBy({
             left: scrollX,
             top: scrollY,
-            behavior: 'auto' // Use 'auto' for immediate response
+            behavior: "auto", // Use auto for immediate response during drag
           });
-          
-          // Continue scrolling if mouse is still in trigger zone
+
           animationFrame = requestAnimationFrame(() => {
             isScrolling = false;
           });
         };
-        
+
         smoothScroll();
       }
     };
 
-    // Mouse wheel scrolling during drag
-    const handleWheel = (e: WheelEvent) => {
-      // Don't prevent default - let normal scrolling work
-      console.log('🖱️ Wheel scroll during drag:', { deltaX: e.deltaX, deltaY: e.deltaY });
-      
-      // Enhanced wheel scrolling - make it more responsive during drag
-      const wheelMultiplier = 1.5; // Make wheel scrolling more responsive during drag
-      
-      // Use smooth scrolling for better UX
-      window.scrollBy({
-        left: e.deltaX * wheelMultiplier,
-        top: e.deltaY * wheelMultiplier,
-        behavior: 'smooth'
-      });
-    };
+    // Only add mousemove listener for drag auto-scroll
+    document.addEventListener("mousemove", handleMouseMove, { passive: true });
 
-    // Add event listeners to document for global coverage
-    document.addEventListener('mousemove', handleMouseMove, { passive: false });
-    document.addEventListener('dragover', handleMouseMove, { passive: false }); // Also listen to dragover
-    document.addEventListener('wheel', handleWheel, { passive: true }); // Use passive for wheel events
-    
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('dragover', handleMouseMove);
-      document.removeEventListener('wheel', handleWheel);
+      document.removeEventListener("mousemove", handleMouseMove);
       if (animationFrame) {
         cancelAnimationFrame(animationFrame);
       }
@@ -967,72 +1191,80 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        <span className="ml-3 text-gray-600">Loading organizational data...</span>
+        <span className="ml-3 text-gray-600">
+          Loading organizational data...
+        </span>
       </div>
     );
   }
 
   return (
     <>
-      <div className="p-6 space-y-8">
-        {/* Firebase Connection Status */}
-        <div className="mb-4">
-          <div className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium ${
-            isConnected 
-              ? 'bg-green-100 text-green-800 border border-green-200' 
-              : 'bg-red-100 text-red-800 border border-red-200'
-          }`}>
-            <div className={`w-2 h-2 rounded-full mr-2 ${
-              isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
-            }`}></div>
-            {isConnected ? '🔥 Firebase Connected' : '⚠️ Using Mock Data'}
+      <div className="p-4 space-y-6 min-h-screen">
+        {/* Firebase Connection Status - Compact */}
+        <div className="mb-3">
+          <div
+            className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium ${
+              isConnected
+                ? "bg-green-100 text-green-800 border border-green-200"
+                : "bg-red-100 text-red-800 border border-red-200"
+            }`}
+          >
+            <div
+              className={`w-2 h-2 rounded-full mr-2 ${
+                isConnected ? "bg-green-500 animate-pulse" : "bg-red-500"
+              }`}
+            ></div>
+            {isConnected ? "🔥 Firebase Connected" : "⚠️ Using Mock Data"}
             {isConnected && (
-              <span className="ml-2 text-xs opacity-75">Real-time sync active</span>
+              <span className="ml-2 text-xs opacity-75">
+                Real-time sync active
+              </span>
             )}
           </div>
         </div>
 
-        {/* Search and controls */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* View Toggle - More Subtle */}
-            <div className="flex bg-gray-100 rounded-lg p-1 border border-gray-200">
+        {/* Search and controls - Compact */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 mb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* View Toggle - Material UI Style */}
+            <div className="flex bg-gray-50 rounded-lg p-1 border border-gray-300 shadow-sm">
               <button
-                onClick={() => setViewMode('detailed')}
+                onClick={() => setViewMode("table")}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center ${
-                  viewMode === 'detailed'
-                    ? 'bg-white text-indigo-600 shadow-sm border border-gray-200'
-                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
+                  viewMode === "table"
+                    ? "bg-white text-blue-600 shadow-sm border border-gray-200"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                }`}
+              >
+                <span className="mr-2">📊</span>
+                Table
+              </button>
+              <button
+                onClick={() => setViewMode("detailed")}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center ${
+                  viewMode === "detailed"
+                    ? "bg-white text-blue-600 shadow-sm border border-gray-200"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                 }`}
               >
                 <span className="mr-2">📋</span>
-                Detailed
+                Cards
               </button>
               <button
-                onClick={() => setViewMode('at-glance')}
+                onClick={() => setViewMode("at-glance")}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center ${
-                  viewMode === 'at-glance'
-                    ? 'bg-white text-indigo-600 shadow-sm border border-gray-200'
-                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
+                  viewMode === "at-glance"
+                    ? "bg-white text-blue-600 shadow-sm border border-gray-200"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                 }`}
               >
                 <span className="mr-2">🌳</span>
-                At a Glance
-              </button>
-              <button
-                onClick={() => setViewMode('bulk-manage')}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center ${
-                  viewMode === 'bulk-manage'
-                    ? 'bg-white text-indigo-600 shadow-sm border border-gray-200'
-                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <span className="mr-2">⚡</span>
-                Bulk Manage
+                Hierarchy
               </button>
             </div>
 
-            {/* Search - Cleaner */}
+            {/* Search - Compact */}
             <div className="relative">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
@@ -1040,21 +1272,23 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                 placeholder="Search employees..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm w-64 bg-white"
+                className="pl-10 pr-4 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm w-56 bg-white"
               />
             </div>
 
-            {/* Team Filter */}
+            {/* Team Filter - Compact */}
             <div className="relative">
               <select
                 value={selectedManagerId}
                 onChange={(e) => setSelectedManagerId(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm bg-white min-w-[200px]"
+                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm bg-white min-w-[180px]"
               >
                 <option value="all">🏢 All Teams</option>
                 {filteredEmployees.managers.map((manager) => {
-                  const teamSize = [...filteredEmployees.teamLeads, ...filteredEmployees.agents]
-                    .filter(emp => emp.managerId === manager.id).length;
+                  const teamSize = [
+                    ...filteredEmployees.teamLeads,
+                    ...filteredEmployees.agents,
+                  ].filter((emp) => emp.managerId === manager.id).length;
                   return (
                     <option key={manager.id} value={manager.id}>
                       👔 {manager.name} ({teamSize} members)
@@ -1064,10 +1298,10 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                 <option value="unassigned">⚠️ Unassigned Only</option>
               </select>
             </div>
-            
-            {/* Bulk Actions - Lighter */}
+
+            {/* Bulk Actions - Compact */}
             {showBulkActions && (
-              <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-2 text-sm">
                 <span className="text-gray-600 font-medium">
                   {selectedEmployees.size} selected
                 </span>
@@ -1075,23 +1309,23 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                   <>
                     <button
                       onClick={() => setBulkModalOpen(true)}
-                      className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                      className="flex items-center px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
                     >
-                      <Squares2X2Icon className="w-4 h-4 mr-2" />
+                      <Squares2X2Icon className="w-4 h-4 mr-1.5" />
                       Bulk Actions
                     </button>
                     <button
                       onClick={handleDeselectAll}
-                      className="px-3 py-2 text-gray-600 hover:text-gray-800 transition-colors font-medium"
+                      className="px-2 py-1.5 text-gray-600 hover:text-gray-800 transition-colors font-medium"
                     >
-                      Clear Selection
+                      Clear
                     </button>
                   </>
                 )}
                 {selectedEmployees.size === 0 && (
                   <button
                     onClick={handleSelectAll}
-                    className="px-4 py-2 text-indigo-600 hover:text-indigo-800 transition-colors font-medium border border-indigo-200 rounded-lg hover:bg-indigo-50"
+                    className="px-3 py-1.5 text-indigo-600 hover:text-indigo-800 transition-colors font-medium border border-indigo-200 rounded-lg hover:bg-indigo-50"
                   >
                     Select All
                   </button>
@@ -1099,49 +1333,52 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
               </div>
             )}
           </div>
-          
-          {/* Action Buttons - Cleaner Row */}
-          <div className="flex items-center gap-3">
-            {/* Pending Changes - Subtle Indicator */}
+
+          {/* Action Buttons - Compact */}
+          <div className="flex items-center gap-2">
+            {/* Pending Changes - Compact */}
             {hasUnsavedChanges && (
               <button
                 onClick={handleShowConfirmation}
-                className="flex items-center px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 shadow-sm transition-all font-medium"
+                className="flex items-center px-3 py-1.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 shadow-sm transition-all font-medium"
               >
-                <ExclamationTriangleIcon className="w-4 h-4 mr-2" />
+                <ExclamationTriangleIcon className="w-4 h-4 mr-1.5" />
                 {getPendingChangesCount()} Pending
               </button>
             )}
-            
-            {/* Import Data - Cleaner */}
+
+            {/* Enhanced Import Data Button */}
             <button
               onClick={handleImportRealData}
               disabled={isImporting}
-              className="flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed transition-colors font-medium"
+              className="flex items-center px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl hover:from-emerald-700 hover:to-green-700 disabled:from-emerald-300 disabled:to-green-300 disabled:cursor-not-allowed transition-all duration-300 font-bold shadow-lg border-2 border-emerald-500/30 hover:border-emerald-400 transform hover:scale-105 backdrop-blur-sm"
             >
-              <CloudArrowUpIcon className="w-4 h-4 mr-2" />
-              {isImporting ? 'Importing...' : 'Import Data'}
+              <CloudArrowUpIcon className="w-5 h-5 mr-2 drop-shadow-sm" />
+              <span className="drop-shadow-sm">
+                {isImporting ? "Importing..." : "Import Data"}
+              </span>
             </button>
-            
-            {/* Integrations - Cleaner with status */}
+
+            {/* Enhanced Integrations Button */}
             <button
               onClick={() => setIntegrationsModalOpen(true)}
-              className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 relative transition-colors font-medium"
+              className="flex items-center px-4 py-2.5 bg-gradient-to-r from-purple-600 to-violet-600 text-white rounded-xl hover:from-purple-700 hover:to-violet-700 relative transition-all duration-300 font-bold shadow-lg border-2 border-purple-500/30 hover:border-purple-400 transform hover:scale-105 backdrop-blur-sm"
             >
-              <CogIcon className="w-4 h-4 mr-2" />
-              Integrations
-              {(integrationsStatus.n8nConfigured || integrationsStatus.slackConfigured) && (
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white"></div>
+              <CogIcon className="w-5 h-5 mr-2 drop-shadow-sm" />
+              <span className="drop-shadow-sm">Integrations</span>
+              {(integrationsStatus.n8nConfigured ||
+                integrationsStatus.slackConfigured) && (
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full border-3 border-white shadow-lg animate-pulse"></div>
               )}
             </button>
-            
-            {/* Add Employee - Primary Action */}
+
+            {/* Enhanced Add Employee Button */}
             <button
-              onClick={() => openModal(null, 'create')}
-              className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors shadow-sm"
+              onClick={() => openModal(null, "create")}
+              className="flex items-center px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl hover:from-indigo-700 hover:to-blue-700 font-bold transition-all duration-300 shadow-lg border-2 border-indigo-500/30 hover:border-indigo-400 transform hover:scale-105 backdrop-blur-sm"
             >
-              <PlusIcon className="w-4 h-4 mr-2" />
-              Add Employee
+              <PlusIcon className="w-5 h-5 mr-2 drop-shadow-sm" />
+              <span className="drop-shadow-sm">Add Employee</span>
             </button>
           </div>
         </div>
@@ -1152,7 +1389,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
             <span className="text-2xl mr-3">🏢</span>
             Organizational Hierarchy & Drag-Drop Guide
           </h3>
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Visual Hierarchy */}
             <div>
@@ -1162,7 +1399,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                 </span>
                 Reporting Structure
               </h4>
-              
+
               <div className="space-y-3">
                 {/* Level 1 */}
                 <div className="flex items-center space-x-3">
@@ -1170,28 +1407,36 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                     <span className="text-white text-sm">👑</span>
                   </div>
                   <div className="flex-1">
-                    <div className="text-sm font-semibold text-purple-700">Level 1: Site Directors</div>
-                    <div className="text-xs text-gray-600">Executive leadership - Cannot be moved</div>
+                    <div className="text-sm font-semibold text-purple-700">
+                      Level 1: Site Directors
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      Executive leadership - Cannot be moved
+                    </div>
                   </div>
                 </div>
-                
+
                 {/* Connection line */}
                 <div className="ml-4 w-0.5 h-4 bg-gray-300"></div>
-                
+
                 {/* Level 2 */}
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-full flex items-center justify-center">
                     <span className="text-white text-sm">👔</span>
                   </div>
                   <div className="flex-1">
-                    <div className="text-sm font-semibold text-blue-700">Level 2: Sales Managers</div>
-                    <div className="text-xs text-gray-600">Report to Directors - Can accept dropped employees</div>
+                    <div className="text-sm font-semibold text-blue-700">
+                      Level 2: Sales Managers
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      Report to Directors - Can accept dropped employees
+                    </div>
                   </div>
                 </div>
-                
+
                 {/* Connection line */}
                 <div className="ml-4 w-0.5 h-4 bg-gray-300"></div>
-                
+
                 {/* Level 3 */}
                 <div className="ml-4 space-y-2">
                   <div className="flex items-center space-x-3">
@@ -1199,24 +1444,32 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                       <span className="text-white text-xs">🎯</span>
                     </div>
                     <div className="flex-1">
-                      <div className="text-sm font-semibold text-green-700">Level 3a: Team Leads</div>
-                      <div className="text-xs text-gray-600">Report to Sales Managers</div>
+                      <div className="text-sm font-semibold text-green-700">
+                        Level 3a: Team Leads
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        Report to Sales Managers
+                      </div>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <div className="w-6 h-6 bg-gradient-to-r from-gray-500 to-slate-500 rounded-full flex items-center justify-center">
                       <span className="text-white text-xs">💼</span>
                     </div>
                     <div className="flex-1">
-                      <div className="text-sm font-semibold text-gray-700">Level 3b: Sales Agents</div>
-                      <div className="text-xs text-gray-600">Report to Sales Managers</div>
+                      <div className="text-sm font-semibold text-gray-700">
+                        Level 3b: Sales Agents
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        Report to Sales Managers
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-            
+
             {/* Drag & Drop Instructions */}
             <div>
               <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
@@ -1225,45 +1478,61 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                 </span>
                 How to Use Drag & Drop
               </h4>
-              
+
               <div className="space-y-3 text-sm">
                 <div className="flex items-start space-x-3">
                   <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-blue-600 text-xs">🎯</span>
                   </div>
                   <div>
-                    <div className="font-medium text-gray-800">Manager Drop Zones</div>
-                    <div className="text-gray-600 text-xs">Blue dashed areas under each manager accept new team members</div>
+                    <div className="font-medium text-gray-800">
+                      Manager Drop Zones
+                    </div>
+                    <div className="text-gray-600 text-xs">
+                      Blue dashed areas under each manager accept new team
+                      members
+                    </div>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start space-x-3">
                   <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-green-600 text-xs">✅</span>
                   </div>
                   <div>
                     <div className="font-medium text-gray-800">Valid Moves</div>
-                    <div className="text-gray-600 text-xs">Team Leads & Agents → Sales Managers</div>
+                    <div className="text-gray-600 text-xs">
+                      Team Leads & Agents → Sales Managers
+                    </div>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start space-x-3">
                   <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-red-600 text-xs">❌</span>
                   </div>
                   <div>
-                    <div className="font-medium text-gray-800">Invalid Moves</div>
-                    <div className="text-gray-600 text-xs">Directors cannot be moved, same-level transfers not allowed</div>
+                    <div className="font-medium text-gray-800">
+                      Invalid Moves
+                    </div>
+                    <div className="text-gray-600 text-xs">
+                      Directors cannot be moved, same-level transfers not
+                      allowed
+                    </div>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start space-x-3">
                   <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-purple-600 text-xs">⚡</span>
                   </div>
                   <div>
-                    <div className="font-medium text-gray-800">Visual Feedback</div>
-                    <div className="text-gray-600 text-xs">Green highlights = valid drop target, Red = invalid</div>
+                    <div className="font-medium text-gray-800">
+                      Visual Feedback
+                    </div>
+                    <div className="text-gray-600 text-xs">
+                      Green highlights = valid drop target, Red = invalid
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1273,7 +1542,9 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
 
         {/* Organization Hierarchy Overview */}
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-gray-900 mb-3">📊 Organizational Structure</h3>
+          <h3 className="text-sm font-medium text-gray-900 mb-3">
+            📊 Organizational Structure
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Austin Site Structure */}
             <div className="bg-white rounded-lg p-3 border">
@@ -1282,18 +1553,29 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                 Austin Site Director
               </h4>
               <div className="ml-4 space-y-2">
-                {filteredEmployees.managers.filter(m => m.site === 'Austin').map(manager => (
-                  <div key={manager.id} className="border-l-2 border-blue-300 pl-3">
-                    <div className="font-medium text-blue-600 flex items-center">
-                      <div className="w-2 h-2 bg-sales-manager rounded mr-2"></div>
-                      {manager.name}
+                {filteredEmployees.managers
+                  .filter((m) => m.site === "Austin")
+                  .map((manager) => (
+                    <div
+                      key={manager.id}
+                      className="border-l-2 border-blue-300 pl-3"
+                    >
+                      <div className="font-medium text-blue-600 flex items-center">
+                        <div className="w-2 h-2 bg-sales-manager rounded mr-2"></div>
+                        {manager.name}
+                      </div>
+                      <div className="ml-3 text-xs text-gray-600">
+                        Reports:{" "}
+                        {
+                          [
+                            ...filteredEmployees.teamLeads,
+                            ...filteredEmployees.agents,
+                          ].filter((emp) => emp.managerId === manager.id).length
+                        }{" "}
+                        employees
+                      </div>
                     </div>
-                    <div className="ml-3 text-xs text-gray-600">
-                      Reports: {[...filteredEmployees.teamLeads, ...filteredEmployees.agents]
-                        .filter(emp => emp.managerId === manager.id).length} employees
-                    </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
 
@@ -1304,18 +1586,29 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                 Charlotte Site Director
               </h4>
               <div className="ml-4 space-y-2">
-                {filteredEmployees.managers.filter(m => m.site === 'Charlotte').map(manager => (
-                  <div key={manager.id} className="border-l-2 border-blue-300 pl-3">
-                    <div className="font-medium text-blue-600 flex items-center">
-                      <div className="w-2 h-2 bg-sales-manager rounded mr-2"></div>
-                      {manager.name}
+                {filteredEmployees.managers
+                  .filter((m) => m.site === "Charlotte")
+                  .map((manager) => (
+                    <div
+                      key={manager.id}
+                      className="border-l-2 border-blue-300 pl-3"
+                    >
+                      <div className="font-medium text-blue-600 flex items-center">
+                        <div className="w-2 h-2 bg-sales-manager rounded mr-2"></div>
+                        {manager.name}
+                      </div>
+                      <div className="ml-3 text-xs text-gray-600">
+                        Reports:{" "}
+                        {
+                          [
+                            ...filteredEmployees.teamLeads,
+                            ...filteredEmployees.agents,
+                          ].filter((emp) => emp.managerId === manager.id).length
+                        }{" "}
+                        employees
+                      </div>
                     </div>
-                    <div className="ml-3 text-xs text-gray-600">
-                      Reports: {[...filteredEmployees.teamLeads, ...filteredEmployees.agents]
-                        .filter(emp => emp.managerId === manager.id).length} employees
-                    </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
           </div>
@@ -1324,32 +1617,345 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
         {/* Statistics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
           <div className="bg-purple-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-purple-600">{stats.totalDirectors}</div>
+            <div className="text-2xl font-bold text-purple-600">
+              {stats.totalDirectors}
+            </div>
             <div className="text-sm text-purple-600">Directors</div>
           </div>
           <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-blue-600">{stats.totalManagers}</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {stats.totalManagers}
+            </div>
             <div className="text-sm text-blue-600">Managers</div>
           </div>
           <div className="bg-green-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-green-600">{stats.totalTeamLeads}</div>
+            <div className="text-2xl font-bold text-green-600">
+              {stats.totalTeamLeads}
+            </div>
             <div className="text-sm text-green-600">Team Leads</div>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-gray-600">{stats.totalAgents}</div>
+            <div className="text-2xl font-bold text-gray-600">
+              {stats.totalAgents}
+            </div>
             <div className="text-sm text-gray-600">Agents</div>
           </div>
         </div>
 
+        {/* Material UI Table View - Spreadsheet Style */}
+        {viewMode === "table" && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            {/* Table Header */}
+            <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <span className="mr-2">📊</span>
+                  Employee Directory - {site} Site
+                </h3>
+                <div className="flex items-center space-x-4 text-sm text-gray-600">
+                  <span>
+                    Total: {Object.values(filteredEmployees).flat().length}{" "}
+                    employees
+                  </span>
+                  {showBulkActions && selectedEmployees.size > 0 && (
+                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                      {selectedEmployees.size} selected
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Table Content */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {showBulkActions && (
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <input
+                          type="checkbox"
+                          checked={
+                            selectedEmployees.size ===
+                            Object.values(filteredEmployees).flat().length
+                          }
+                          onChange={(e) =>
+                            e.target.checked
+                              ? handleSelectAll()
+                              : handleDeselectAll()
+                          }
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </th>
+                    )}
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Employee
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Role & Level
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Manager
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Commission
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Performance
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {Object.values(filteredEmployees)
+                    .flat()
+                    .sort((a, b) => {
+                      // Sort by role hierarchy, then by name
+                      const roleOrder = {
+                        "Sales Director": 1,
+                        "Sales Manager": 2,
+                        "Team Lead": 3,
+                        Agent: 4,
+                      };
+                      const aOrder =
+                        roleOrder[a.role as keyof typeof roleOrder] || 5;
+                      const bOrder =
+                        roleOrder[b.role as keyof typeof roleOrder] || 5;
+                      if (aOrder !== bOrder) return aOrder - bOrder;
+                      return a.name.localeCompare(b.name);
+                    })
+                    .map((employee, index) => {
+                      const manager = Object.values(filteredEmployees)
+                        .flat()
+                        .find((emp) => emp.id === employee.managerId);
+                      const commission = employee.commissionTier
+                        ? employee.role === "Agent"
+                          ? employee.commissionTier.charAt(0).toUpperCase() +
+                            employee.commissionTier.slice(1)
+                          : "Management"
+                        : "Not Set";
+
+                      return (
+                        <tr
+                          key={employee.id}
+                          className={`hover:bg-gray-50 ${
+                            index % 2 === 0 ? "bg-white" : "bg-gray-25"
+                          }`}
+                        >
+                          {showBulkActions && (
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <input
+                                type="checkbox"
+                                checked={selectedEmployees.has(employee.id)}
+                                onChange={(e) =>
+                                  handleEmployeeSelect(
+                                    employee.id,
+                                    e.target.checked
+                                  )
+                                }
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                            </td>
+                          )}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0 h-10 w-10">
+                                <div
+                                  className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold text-sm ${
+                                    employee.role === "Sales Director"
+                                      ? "bg-purple-500"
+                                      : employee.role === "Sales Manager"
+                                      ? "bg-blue-500"
+                                      : employee.role === "Team Lead"
+                                      ? "bg-green-500"
+                                      : "bg-gray-500"
+                                  }`}
+                                >
+                                  {employee.name
+                                    .split(" ")
+                                    .map((n) => n[0])
+                                    .join("")
+                                    .substring(0, 2)}
+                                </div>
+                              </div>
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-900">
+                                  {employee.name}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  ID: {employee.id.slice(0, 8)}...
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <span
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  employee.role === "Sales Director"
+                                    ? "bg-purple-100 text-purple-800"
+                                    : employee.role === "Sales Manager"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : employee.role === "Team Lead"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-gray-100 text-gray-800"
+                                }`}
+                              >
+                                {employee.role === "Sales Director"
+                                  ? "👑"
+                                  : employee.role === "Sales Manager"
+                                  ? "👔"
+                                  : employee.role === "Team Lead"
+                                  ? "🎯"
+                                  : "💼"}{" "}
+                                {employee.role}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {manager
+                              ? manager.name
+                              : employee.role === "Sales Director"
+                              ? "—"
+                              : "Unassigned"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                commission === "Veteran"
+                                  ? "bg-green-100 text-green-800"
+                                  : commission === "Standard"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : commission === "New"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : commission === "Management"
+                                  ? "bg-purple-100 text-purple-800"
+                                  : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {commission}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="flex items-center">
+                              <div className="flex-1 bg-gray-200 rounded-full h-2 mr-2">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    employee.role === "Sales Director"
+                                      ? "bg-purple-500 w-full"
+                                      : employee.role === "Sales Manager"
+                                      ? "bg-blue-500 w-4/5"
+                                      : employee.role === "Team Lead"
+                                      ? "bg-green-500 w-3/5"
+                                      : "bg-gray-400 w-2/5"
+                                  }`}
+                                ></div>
+                              </div>
+                              <span className="text-xs text-gray-600">
+                                {employee.role === "Sales Director"
+                                  ? "100%"
+                                  : employee.role === "Sales Manager"
+                                  ? "85%"
+                                  : employee.role === "Team Lead"
+                                  ? "72%"
+                                  : "58%"}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                employee.status === "terminated"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-green-100 text-green-800"
+                              }`}
+                            >
+                              {employee.status === "terminated"
+                                ? "🔴 Terminated"
+                                : "🟢 Active"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex items-center justify-end space-x-2">
+                              <button
+                                onClick={() => handleView(employee)}
+                                className="text-blue-600 hover:text-blue-900 transition-colors"
+                                title="View Details"
+                              >
+                                👁️
+                              </button>
+                              <button
+                                onClick={() => handleEdit(employee)}
+                                className="text-indigo-600 hover:text-indigo-900 transition-colors"
+                                title="Edit"
+                              >
+                                ✏️
+                              </button>
+                              {employee.role !== "Sales Director" && (
+                                <button
+                                  onClick={() =>
+                                    handlePromote(employee.id, employee.role)
+                                  }
+                                  className="text-green-600 hover:text-green-900 transition-colors"
+                                  title="Promote"
+                                >
+                                  ⬆️
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleTransfer(employee)}
+                                className="text-yellow-600 hover:text-yellow-900 transition-colors"
+                                title="Transfer"
+                              >
+                                🔄
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Table Footer */}
+            <div className="bg-gray-50 px-6 py-3 border-t border-gray-200">
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <div>
+                  Showing {Object.values(filteredEmployees).flat().length}{" "}
+                  employees
+                  {searchTerm && ` matching "${searchTerm}"`}
+                </div>
+                <div className="flex items-center space-x-4">
+                  <span>
+                    📊 Directors: {filteredEmployees.directors.length}
+                  </span>
+                  <span>👔 Managers: {filteredEmployees.managers.length}</span>
+                  <span>🎯 Leads: {filteredEmployees.teamLeads.length}</span>
+                  <span>💼 Agents: {filteredEmployees.agents.length}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* At-a-Glance View */}
-        {viewMode === 'at-glance' && (
+        {viewMode === "at-glance" && (
           <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl p-8 shadow-sm border border-gray-100">
             {/* Beautiful Header */}
             <div className="text-center mb-8">
               <h3 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 {site} Site Organizational Structure
               </h3>
-              <p className="text-gray-600 mt-2">Interactive organizational chart - click any employee to view details</p>
+              <p className="text-gray-600 mt-2">
+                Interactive organizational chart - click any employee to view
+                details
+              </p>
             </div>
 
             {/* Clean Tree Structure */}
@@ -1360,7 +1966,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                   <div key={director.id} className="mb-16">
                     {/* Director Node - Elegant and Clean */}
                     <div className="flex justify-center mb-12">
-                      <div 
+                      <div
                         onClick={() => handleView(director)}
                         className="group cursor-pointer transform hover:scale-105 transition-all duration-300"
                       >
@@ -1369,15 +1975,19 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                           <div className="absolute -top-3 -right-3 w-8 h-8 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full flex items-center justify-center shadow-md">
                             <span className="text-white text-sm">👑</span>
                           </div>
-                          
+
                           {/* Content */}
                           <div className="flex items-center justify-center mb-3">
                             <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
                               <span className="text-2xl">🏢</span>
                             </div>
                           </div>
-                          <h4 className="font-bold text-xl mb-1">{director.name}</h4>
-                          <p className="text-purple-100 font-medium">Site Director</p>
+                          <h4 className="font-bold text-xl mb-1">
+                            {director.name}
+                          </h4>
+                          <p className="text-purple-100 font-medium">
+                            Site Director
+                          </p>
                           <div className="mt-3 bg-white/10 rounded-full px-3 py-1 text-sm">
                             📍 {director.site}
                           </div>
@@ -1386,7 +1996,9 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                     </div>
 
                     {/* Connection Line to Managers */}
-                    {filteredEmployees.managers.filter(m => m.site === director.site).length > 0 && (
+                    {filteredEmployees.managers.filter(
+                      (m) => m.site === director.site
+                    ).length > 0 && (
                       <div className="relative">
                         <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-6">
                           <div className="w-0.5 h-6 bg-gradient-to-b from-purple-300 to-blue-300"></div>
@@ -1395,114 +2007,158 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                     )}
 
                     {/* Managers Level - Clean Cards */}
-                    {filteredEmployees.managers.filter(m => m.site === director.site).length > 0 && (
+                    {filteredEmployees.managers.filter(
+                      (m) => m.site === director.site
+                    ).length > 0 && (
                       <div className="flex justify-center mb-10">
                         <div className="flex flex-wrap justify-center gap-8">
-                          {filteredEmployees.managers.filter(m => m.site === director.site).map((manager) => {
-                            const teamMembers = [...filteredEmployees.teamLeads, ...filteredEmployees.agents]
-                              .filter(emp => emp.managerId === manager.id);
-                            
-                            return (
-                              <div key={manager.id} className="flex flex-col items-center">
-                                {/* Vertical Line to Manager */}
-                                <div className="w-0.5 h-8 bg-gradient-to-b from-blue-300 to-cyan-300 mb-4"></div>
-                                
-                                {/* Manager Card - Clean Design */}
-                                <div 
-                                  onClick={() => handleView(manager)}
-                                  className="group cursor-pointer transform hover:scale-105 transition-all duration-300 mb-6"
+                          {filteredEmployees.managers
+                            .filter((m) => m.site === director.site)
+                            .map((manager) => {
+                              const teamMembers = [
+                                ...filteredEmployees.teamLeads,
+                                ...filteredEmployees.agents,
+                              ].filter((emp) => emp.managerId === manager.id);
+
+                              return (
+                                <div
+                                  key={manager.id}
+                                  className="flex flex-col items-center"
                                 >
-                                  <div className="bg-gradient-to-br from-blue-500 to-cyan-500 text-white rounded-xl p-5 shadow-md hover:shadow-lg w-[240px] text-center border border-white/20">
-                                    {/* Badge */}
-                                    <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full flex items-center justify-center">
-                                      <span className="text-white text-xs">👔</span>
-                                    </div>
-                                    
-                                    {/* Content */}
-                                    <div className="flex items-center justify-center mb-3">
-                                      <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                                        <span className="text-xl">👥</span>
+                                  {/* Vertical Line to Manager */}
+                                  <div className="w-0.5 h-8 bg-gradient-to-b from-blue-300 to-cyan-300 mb-4"></div>
+
+                                  {/* Manager Card - Clean Design */}
+                                  <div
+                                    onClick={() => handleView(manager)}
+                                    className="group cursor-pointer transform hover:scale-105 transition-all duration-300 mb-6"
+                                  >
+                                    <div className="bg-gradient-to-br from-blue-500 to-cyan-500 text-white rounded-xl p-5 shadow-md hover:shadow-lg w-[240px] text-center border border-white/20">
+                                      {/* Badge */}
+                                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full flex items-center justify-center">
+                                        <span className="text-white text-xs">
+                                          👔
+                                        </span>
+                                      </div>
+
+                                      {/* Content */}
+                                      <div className="flex items-center justify-center mb-3">
+                                        <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                                          <span className="text-xl">👥</span>
+                                        </div>
+                                      </div>
+                                      <h4 className="font-semibold text-lg mb-1">
+                                        {manager.name}
+                                      </h4>
+                                      <p className="text-blue-100 text-sm">
+                                        Sales Manager
+                                      </p>
+                                      <div className="mt-2 bg-white/10 rounded-full px-3 py-1 text-xs">
+                                        👥 {teamMembers.length} Reports
                                       </div>
                                     </div>
-                                    <h4 className="font-semibold text-lg mb-1">{manager.name}</h4>
-                                    <p className="text-blue-100 text-sm">Sales Manager</p>
-                                    <div className="mt-2 bg-white/10 rounded-full px-3 py-1 text-xs">
-                                      👥 {teamMembers.length} Reports
-                                    </div>
                                   </div>
-                                </div>
 
-                                {/* Team Members - Minimalist Cards */}
-                                {teamMembers.length > 0 ? (
-                                  <div className="flex flex-col items-center">
-                                    {/* Connection Line */}
-                                    <div className="w-0.5 h-6 bg-gradient-to-b from-cyan-300 to-green-300"></div>
-                                    
-                                    {/* Team Grid */}
-                                    <div className="grid grid-cols-2 gap-3 mt-2">
-                                      {teamMembers
-                                        .sort((a, b) => {
-                                          if (a.role === 'Team Lead' && b.role === 'Agent') return -1;
-                                          if (a.role === 'Agent' && b.role === 'Team Lead') return 1;
-                                          return a.name.localeCompare(b.name);
-                                        })
-                                        .map((employee) => (
-                                          <div 
-                                            key={employee.id}
-                                            onClick={() => handleView(employee)}
-                                            className="group cursor-pointer transform hover:scale-105 transition-all duration-300"
-                                          >
-                                            <div className={`rounded-lg p-3 shadow-sm hover:shadow-md text-center border border-white/30 ${
-                                              employee.role === 'Team Lead' 
-                                                ? 'bg-gradient-to-br from-green-400 to-emerald-500 text-white' 
-                                                : 'bg-gradient-to-br from-gray-400 to-slate-500 text-white'
-                                            } min-w-[110px]`}>
-                                              {/* Role Icon */}
-                                              <div className="text-lg mb-1">
-                                                {employee.role === 'Team Lead' ? '🎯' : '💼'}
-                                              </div>
-                                              {/* Name */}
-                                              <div className="font-medium text-sm truncate" title={employee.name}>
-                                                {employee.name.split(' ')[0]}
-                                              </div>
-                                              {/* Role */}
-                                              <div className="text-xs opacity-90 mt-1">
-                                                {employee.role === 'Team Lead' ? 'Lead' : 'Agent'}
+                                  {/* Team Members - Minimalist Cards */}
+                                  {teamMembers.length > 0 ? (
+                                    <div className="flex flex-col items-center">
+                                      {/* Connection Line */}
+                                      <div className="w-0.5 h-6 bg-gradient-to-b from-cyan-300 to-green-300"></div>
+
+                                      {/* Team Grid */}
+                                      <div className="grid grid-cols-2 gap-3 mt-2">
+                                        {teamMembers
+                                          .sort((a, b) => {
+                                            if (
+                                              a.role === "Team Lead" &&
+                                              b.role === "Agent"
+                                            )
+                                              return -1;
+                                            if (
+                                              a.role === "Agent" &&
+                                              b.role === "Team Lead"
+                                            )
+                                              return 1;
+                                            return a.name.localeCompare(b.name);
+                                          })
+                                          .map((employee) => (
+                                            <div
+                                              key={employee.id}
+                                              onClick={() =>
+                                                handleView(employee)
+                                              }
+                                              className="group cursor-pointer transform hover:scale-105 transition-all duration-300"
+                                            >
+                                              <div
+                                                className={`rounded-lg p-3 shadow-sm hover:shadow-md text-center border border-white/30 ${
+                                                  employee.role === "Team Lead"
+                                                    ? "bg-gradient-to-br from-green-400 to-emerald-500 text-white"
+                                                    : "bg-gradient-to-br from-gray-400 to-slate-500 text-white"
+                                                } min-w-[110px]`}
+                                              >
+                                                {/* Role Icon */}
+                                                <div className="text-lg mb-1">
+                                                  {employee.role === "Team Lead"
+                                                    ? "🎯"
+                                                    : "💼"}
+                                                </div>
+                                                {/* Name */}
+                                                <div
+                                                  className="font-medium text-sm truncate"
+                                                  title={employee.name}
+                                                >
+                                                  {employee.name.split(" ")[0]}
+                                                </div>
+                                                {/* Role */}
+                                                <div className="text-xs opacity-90 mt-1">
+                                                  {employee.role === "Team Lead"
+                                                    ? "Lead"
+                                                    : "Agent"}
+                                                </div>
                                               </div>
                                             </div>
-                                          </div>
-                                        ))}
+                                          ))}
+                                      </div>
                                     </div>
-                                  </div>
-                                ) : (
-                                  <div className={`transition-all ${
-                                    isDragging 
-                                      ? 'p-6 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg' 
-                                      : 'p-3 bg-gray-50'
-                                  }`}>
-                                    <div className="text-center">
-                                      {isDragging ? (
-                                        <div className="text-blue-600">
-                                          <div className="w-16 h-16 bg-blue-100 rounded-full mx-auto mb-3 flex items-center justify-center">
-                                            <span className="text-2xl">🎯</span>
+                                  ) : (
+                                    <div
+                                      className={`transition-all ${
+                                        isDragging
+                                          ? "p-6 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg"
+                                          : "p-3 bg-gray-50"
+                                      }`}
+                                    >
+                                      <div className="text-center">
+                                        {isDragging ? (
+                                          <div className="text-blue-600">
+                                            <div className="w-16 h-16 bg-blue-100 rounded-full mx-auto mb-3 flex items-center justify-center">
+                                              <span className="text-2xl">
+                                                🎯
+                                              </span>
+                                            </div>
+                                            <p className="font-medium">
+                                              Drop employee here
+                                            </p>
+                                            <p className="text-xs mt-1">
+                                              Build {manager.name}'s team
+                                            </p>
                                           </div>
-                                          <p className="font-medium">Drop employee here</p>
-                                          <p className="text-xs mt-1">Build {manager.name}'s team</p>
-                                        </div>
-                                      ) : (
-                                        <div className="text-gray-400 text-sm">
-                                          <div className="w-12 h-12 bg-gray-200 rounded-full mx-auto mb-2 flex items-center justify-center">
-                                            <span className="text-lg">👥</span>
+                                        ) : (
+                                          <div className="text-gray-400 text-sm">
+                                            <div className="w-12 h-12 bg-gray-200 rounded-full mx-auto mb-2 flex items-center justify-center">
+                                              <span className="text-lg">
+                                                👥
+                                              </span>
+                                            </div>
+                                            <p>No team members</p>
                                           </div>
-                                          <p>No team members</p>
-                                        </div>
-                                      )}
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
+                                  )}
+                                </div>
+                              );
+                            })}
                         </div>
                       </div>
                     )}
@@ -1515,22 +2171,32 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                     <div className="text-center mb-4">
                       <div className="inline-flex items-center px-4 py-2 bg-yellow-100 rounded-full">
                         <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600 mr-2" />
-                        <span className="font-medium text-yellow-800">Unassigned Employees</span>
+                        <span className="font-medium text-yellow-800">
+                          Unassigned Employees
+                        </span>
                       </div>
                     </div>
                     <div className="flex flex-wrap justify-center gap-3">
                       {unassignedEmployees.map((employee) => (
-                        <div 
+                        <div
                           key={employee.id}
                           onClick={() => handleView(employee)}
                           className="bg-white rounded-lg p-3 shadow-sm hover:shadow-md cursor-pointer transform hover:scale-105 transition-all duration-300 border border-yellow-200"
                         >
                           <div className="text-center">
                             <div className="text-lg mb-1">
-                              {employee.role === 'Team Lead' ? '🎯' : employee.role === 'Sales Manager' ? '👔' : '💼'}
+                              {employee.role === "Team Lead"
+                                ? "🎯"
+                                : employee.role === "Sales Manager"
+                                ? "👔"
+                                : "💼"}
                             </div>
-                            <div className="font-medium text-sm text-gray-800">{employee.name}</div>
-                            <div className="text-xs text-gray-600">{employee.role}</div>
+                            <div className="font-medium text-sm text-gray-800">
+                              {employee.name}
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              {employee.role}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1543,14 +2209,16 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
         )}
 
         {/* Employee Cards - Clear Hierarchy Structure (Detailed View) */}
-        {viewMode === 'detailed' && (
+        {viewMode === "detailed" && (
           <div className="space-y-8">
             {/* Directors */}
             <div className="bg-white rounded-xl p-6 border-l-4 border-purple-500 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-gray-900 flex items-center">
                   <div className="w-8 h-8 bg-purple-100 rounded-full mr-3 flex items-center justify-center border-2 border-purple-300">
-                    <span className="text-purple-700 text-lg font-bold">👑</span>
+                    <span className="text-purple-700 text-lg font-bold">
+                      👑
+                    </span>
                   </div>
                   Site Directors
                   <span className="ml-3 px-3 py-1 bg-purple-100 text-purple-800 text-sm font-semibold rounded-full border border-purple-200">
@@ -1558,14 +2226,23 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                   </span>
                 </h3>
                 <div className="text-sm text-gray-700 bg-gray-100 px-3 py-2 rounded-lg">
-                  <span className="font-semibold">{filteredEmployees.directors.length}</span> Director{filteredEmployees.directors.length !== 1 ? 's' : ''}
+                  <span className="font-semibold">
+                    {filteredEmployees.directors.length}
+                  </span>{" "}
+                  Director{filteredEmployees.directors.length !== 1 ? "s" : ""}
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-2">
                 {filteredEmployees.directors.map((employee) => (
-                  <div key={employee.id} className="transform hover:scale-105 transition-transform">
-                    <div onClick={() => handleView(employee)} className="cursor-pointer">
+                  <div
+                    key={employee.id}
+                    className="transform hover:scale-105 transition-transform"
+                  >
+                    <div
+                      onClick={() => handleView(employee)}
+                      className="cursor-pointer"
+                    >
                       <EmployeeCard
                         key={employee.id}
                         employee={employee}
@@ -1588,279 +2265,373 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
             </div>
 
             {/* Managers and their Teams - Clear Hierarchy */}
-            {selectedManagerId !== 'unassigned' && (
-            <div className="bg-white rounded-xl p-6 border-l-4 border-blue-500 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900 flex items-center">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full mr-3 flex items-center justify-center border-2 border-blue-300">
-                    <span className="text-blue-700 text-lg font-bold">👔</span>
+            {selectedManagerId !== "unassigned" && (
+              <div className="bg-white rounded-xl p-6 border-l-4 border-blue-500 shadow-sm">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full mr-3 flex items-center justify-center border-2 border-blue-300">
+                      <span className="text-blue-700 text-lg font-bold">
+                        👔
+                      </span>
+                    </div>
+                    Sales Manager Teams
+                    <span className="ml-3 px-3 py-1 bg-blue-100 text-blue-800 text-sm font-semibold rounded-full border border-blue-200">
+                      Level 2 - Management
+                    </span>
+                  </h3>
+                  <div className="text-sm text-gray-700 bg-gray-100 px-3 py-2 rounded-lg">
+                    <span className="font-semibold">
+                      {filteredEmployees.managers.length}
+                    </span>{" "}
+                    Team{filteredEmployees.managers.length !== 1 ? "s" : ""}
                   </div>
-                  Sales Manager Teams
-                  <span className="ml-3 px-3 py-1 bg-blue-100 text-blue-800 text-sm font-semibold rounded-full border border-blue-200">
-                    Level 2 - Management
-                  </span>
-                </h3>
-                <div className="text-sm text-gray-700 bg-gray-100 px-3 py-2 rounded-lg">
-                  <span className="font-semibold">{filteredEmployees.managers.length}</span> Team{filteredEmployees.managers.length !== 1 ? 's' : ''}
                 </div>
-              </div>
-              
-              <div className="space-y-6">
-                {filteredEmployees.managers
-                  .filter(manager => selectedManagerId === 'all' || selectedManagerId === manager.id)
-                  .map((manager) => {
-                  const directReports = [...filteredEmployees.teamLeads, ...filteredEmployees.agents]
-                    .filter(emp => emp.managerId === manager.id);
-                  const teamLeads = directReports.filter(emp => emp.role === 'Team Lead');
-                  const agents = directReports.filter(emp => emp.role === 'Agent');
-                  
-                  return (
-                    <div key={manager.id} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
-                      {/* Manager Header - Improved contrast and layout */}
-                      <div className="bg-white border-b-2 border-blue-200 p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center border-2 border-blue-300">
-                              <span className="text-blue-700 font-bold text-lg">👔</span>
-                            </div>
-                            <div>
-                              <h4 className="text-gray-900 font-bold text-lg">{manager.name}</h4>
-                              <div className="flex items-center space-x-4 text-gray-700 text-sm">
-                                <span className="bg-gray-100 px-2 py-1 rounded-full">🏢 {manager.site}</span>
-                                <span className="bg-blue-100 px-2 py-1 rounded-full text-blue-800">👥 {directReports.length} Reports</span>
-                                <span className="bg-green-100 px-2 py-1 rounded-full text-green-800">📊 Sales Manager</span>
-                              </div>
-                            </div>
-                          </div>
-                          {isDragging && (
-                            <div className="text-right bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
-                              <div className="text-blue-800 text-sm font-semibold">Drop Zone</div>
-                              <div className="text-blue-600 text-xs">Drag employees here</div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
 
-                      {/* Manager Card as Drop Zone - Cleaner layout */}
-                      <div className="p-4 bg-gray-50">
-                        <DropZone
-                          onDrop={(droppedId) => handleDrop(manager.id, droppedId)}
-                          className={`relative rounded-lg transition-all ${
-                            isDragging 
-                              ? 'border-2 border-dashed border-green-400 bg-green-50 p-3' 
-                              : 'border border-gray-200 p-2 bg-white'
-                          }`}
-                          canDrop={true}
+                <div className="space-y-6">
+                  {filteredEmployees.managers
+                    .filter(
+                      (manager) =>
+                        selectedManagerId === "all" ||
+                        selectedManagerId === manager.id
+                    )
+                    .map((manager) => {
+                      const directReports = [
+                        ...filteredEmployees.teamLeads,
+                        ...filteredEmployees.agents,
+                      ].filter((emp) => emp.managerId === manager.id);
+                      const teamLeads = directReports.filter(
+                        (emp) => emp.role === "Team Lead"
+                      );
+                      const agents = directReports.filter(
+                        (emp) => emp.role === "Agent"
+                      );
+
+                      return (
+                        <div
+                          key={manager.id}
+                          className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden"
                         >
-                          <div onClick={() => handleView(manager)} className="cursor-pointer">
-                            <EmployeeCard
-                              key={manager.id}
-                              employee={manager}
-                              onView={handleView}
-                              onEdit={handleEdit}
-                              onPromote={(emp) => handlePromote(emp.id, emp.role)}
-                              onTransfer={handleTransfer}
-                              onTerminate={handleTerminate}
-                              onSelect={handleEmployeeSelect}
-                              isSelected={selectedEmployees.has(manager.id)}
-                              showBulkActions={showBulkActions}
-                              isDragMode={true}
-                              onDragStart={handleDragStart}
-                              onDragEnd={handleDragEnd}
-                            />
-                          </div>
-                        </DropZone>
-                      </div>
-
-                      {/* Team Structure - Simplified for 1:1 Manager-Team Lead relationship */}
-                      {directReports.length > 0 ? (
-                        <div className="p-4 bg-gray-50">
-                          {/* Team Lead Section - Better organized */}
-                          {teamLeads.length > 0 && (
-                            <div className="mb-4">
-                              <div className="flex items-center mb-2">
-                                <span className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center mr-2">
-                                  <span className="text-green-700 text-xs">🎯</span>
-                                </span>
-                                <h5 className="text-sm font-semibold text-green-700">Team Lead</h5>
-                                <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">
-                                  Level 3
-                                </span>
-                              </div>
-                              <div className="bg-white rounded-lg p-3 border border-green-200">
-                                <div onClick={() => handleView(teamLeads[0])} className="cursor-pointer">
-                                  <EmployeeCard
-                                    key={teamLeads[0].id}
-                                    employee={teamLeads[0]}
-                                    onView={handleView}
-                                    onEdit={handleEdit}
-                                    onPromote={(emp) => handlePromote(emp.id, emp.role)}
-                                    onTransfer={handleTransfer}
-                                    onTerminate={handleTerminate}
-                                    onSelect={handleEmployeeSelect}
-                                    isSelected={selectedEmployees.has(teamLeads[0].id)}
-                                    showBulkActions={showBulkActions}
-                                    isDragMode={true}
-                                    onDragStart={handleDragStart}
-                                    onDragEnd={handleDragEnd}
-                                  />
+                          {/* Manager Header - Improved contrast and layout */}
+                          <div className="bg-white border-b-2 border-blue-200 p-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center border-2 border-blue-300">
+                                  <span className="text-blue-700 font-bold text-lg">
+                                    👔
+                                  </span>
+                                </div>
+                                <div>
+                                  <h4 className="text-gray-900 font-bold text-lg">
+                                    {manager.name}
+                                  </h4>
+                                  <div className="flex items-center space-x-4 text-gray-700 text-sm">
+                                    <span className="bg-gray-100 px-2 py-1 rounded-full">
+                                      🏢 {manager.site}
+                                    </span>
+                                    <span className="bg-blue-100 px-2 py-1 rounded-full text-blue-800">
+                                      👥 {directReports.length} Reports
+                                    </span>
+                                    <span className="bg-green-100 px-2 py-1 rounded-full text-green-800">
+                                      📊 Sales Manager
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
+                              {isDragging && (
+                                <div className="text-right bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
+                                  <div className="text-blue-800 text-sm font-semibold">
+                                    Drop Zone
+                                  </div>
+                                  <div className="text-blue-600 text-xs">
+                                    Drag employees here
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
 
-                          {/* Agents Section - Clean grid layout */}
-                          {agents.length > 0 && (
-                            <div>
-                              <div className="flex items-center mb-3">
-                                <span className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center mr-2">
-                                  <span className="text-gray-700 text-xs">💼</span>
-                                </span>
-                                <h5 className="text-sm font-semibold text-gray-700">
-                                  Sales Agents ({agents.length})
-                                </h5>
-                                <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full font-medium">
-                                  Level 4
-                                </span>
+                          {/* Manager Card as Drop Zone - Cleaner layout */}
+                          <div className="p-4 bg-gray-50">
+                            <DropZone
+                              onDrop={(droppedId) =>
+                                handleDrop(manager.id, droppedId)
+                              }
+                              className={`relative rounded-lg transition-all ${
+                                isDragging
+                                  ? "border-2 border-dashed border-green-400 bg-green-50 p-3"
+                                  : "border border-gray-200 p-2 bg-white"
+                              }`}
+                              canDrop={true}
+                              id={`manager-${manager.id}`}
+                            >
+                              <div
+                                onClick={() => handleView(manager)}
+                                className="cursor-pointer"
+                              >
+                                <EmployeeCard
+                                  key={manager.id}
+                                  employee={manager}
+                                  onView={handleView}
+                                  onEdit={handleEdit}
+                                  onPromote={(emp) =>
+                                    handlePromote(emp.id, emp.role)
+                                  }
+                                  onTransfer={handleTransfer}
+                                  onTerminate={handleTerminate}
+                                  onSelect={handleEmployeeSelect}
+                                  isSelected={selectedEmployees.has(manager.id)}
+                                  showBulkActions={showBulkActions}
+                                  isDragMode={true}
+                                  onDragStart={handleDragStart}
+                                  onDragEnd={handleDragEnd}
+                                />
                               </div>
-                              <div className="bg-white rounded-lg p-3 border border-gray-200">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                                  {agents.map((employee) => (
-                                    <div key={employee.id} onClick={() => handleView(employee)} className="cursor-pointer">
+                            </DropZone>
+                          </div>
+
+                          {/* Team Structure - Simplified for 1:1 Manager-Team Lead relationship */}
+                          {directReports.length > 0 ? (
+                            <div className="p-4 bg-gray-50">
+                              {/* Team Lead Section - Better organized */}
+                              {teamLeads.length > 0 && (
+                                <div className="mb-4">
+                                  <div className="flex items-center mb-2">
+                                    <span className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center mr-2">
+                                      <span className="text-green-700 text-xs">
+                                        🎯
+                                      </span>
+                                    </span>
+                                    <h5 className="text-sm font-semibold text-green-700">
+                                      Team Lead
+                                    </h5>
+                                    <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                                      Level 3
+                                    </span>
+                                  </div>
+                                  <div className="bg-white rounded-lg p-3 border border-green-200">
+                                    <div
+                                      onClick={() => handleView(teamLeads[0])}
+                                      className="cursor-pointer"
+                                    >
                                       <EmployeeCard
-                                        key={employee.id}
-                                        employee={employee}
+                                        key={teamLeads[0].id}
+                                        employee={teamLeads[0]}
                                         onView={handleView}
                                         onEdit={handleEdit}
-                                        onPromote={(emp) => handlePromote(emp.id, emp.role)}
+                                        onPromote={(emp) =>
+                                          handlePromote(emp.id, emp.role)
+                                        }
                                         onTransfer={handleTransfer}
                                         onTerminate={handleTerminate}
                                         onSelect={handleEmployeeSelect}
-                                        isSelected={selectedEmployees.has(employee.id)}
+                                        isSelected={selectedEmployees.has(
+                                          teamLeads[0].id
+                                        )}
                                         showBulkActions={showBulkActions}
                                         isDragMode={true}
                                         onDragStart={handleDragStart}
                                         onDragEnd={handleDragEnd}
                                       />
                                     </div>
-                                  ))}
+                                  </div>
                                 </div>
+                              )}
+
+                              {/* Agents Section - Clean grid layout */}
+                              {agents.length > 0 && (
+                                <div>
+                                  <div className="flex items-center mb-3">
+                                    <span className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center mr-2">
+                                      <span className="text-gray-700 text-xs">
+                                        💼
+                                      </span>
+                                    </span>
+                                    <h5 className="text-sm font-semibold text-gray-700">
+                                      Sales Agents ({agents.length})
+                                    </h5>
+                                    <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full font-medium">
+                                      Level 4
+                                    </span>
+                                  </div>
+                                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                                      {agents.map((employee) => (
+                                        <div
+                                          key={employee.id}
+                                          onClick={() => handleView(employee)}
+                                          className="cursor-pointer"
+                                        >
+                                          <EmployeeCard
+                                            key={employee.id}
+                                            employee={employee}
+                                            onView={handleView}
+                                            onEdit={handleEdit}
+                                            onPromote={(emp) =>
+                                              handlePromote(emp.id, emp.role)
+                                            }
+                                            onTransfer={handleTransfer}
+                                            onTerminate={handleTerminate}
+                                            onSelect={handleEmployeeSelect}
+                                            isSelected={selectedEmployees.has(
+                                              employee.id
+                                            )}
+                                            showBulkActions={showBulkActions}
+                                            isDragMode={true}
+                                            onDragStart={handleDragStart}
+                                            onDragEnd={handleDragEnd}
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div
+                              className={`transition-all ${
+                                isDragging
+                                  ? "p-4 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg"
+                                  : "p-3 bg-gray-50"
+                              }`}
+                            >
+                              <div className="text-center">
+                                {isDragging ? (
+                                  <div className="text-blue-600">
+                                    <div className="w-12 h-12 bg-blue-100 rounded-full mx-auto mb-2 flex items-center justify-center">
+                                      <span className="text-xl">🎯</span>
+                                    </div>
+                                    <p className="font-medium text-sm">
+                                      Drop employee here
+                                    </p>
+                                    <p className="text-xs mt-1">
+                                      Build {manager.name}'s team
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <div className="text-gray-400 text-sm">
+                                    <div className="w-10 h-10 bg-gray-200 rounded-full mx-auto mb-2 flex items-center justify-center">
+                                      <span className="text-lg">👥</span>
+                                    </div>
+                                    <p className="text-xs">No team members</p>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )}
                         </div>
-                      ) : (
-                        <div className={`transition-all ${
-                          isDragging 
-                            ? 'p-4 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg' 
-                            : 'p-3 bg-gray-50'
-                        }`}>
-                          <div className="text-center">
-                            {isDragging ? (
-                              <div className="text-blue-600">
-                                <div className="w-12 h-12 bg-blue-100 rounded-full mx-auto mb-2 flex items-center justify-center">
-                                  <span className="text-xl">🎯</span>
-                                </div>
-                                <p className="font-medium text-sm">Drop employee here</p>
-                                <p className="text-xs mt-1">Build {manager.name}'s team</p>
-                              </div>
-                            ) : (
-                              <div className="text-gray-400 text-sm">
-                                <div className="w-10 h-10 bg-gray-200 rounded-full mx-auto mb-2 flex items-center justify-center">
-                                  <span className="text-lg">👥</span>
-                                </div>
-                                <p className="text-xs">No team members</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                </div>
               </div>
-            </div>
             )}
 
             {/* Unassigned Employees - Critical Action Required */}
-            {(selectedManagerId === 'all' || selectedManagerId === 'unassigned') &&
-             (filteredEmployees.teamLeads.filter(emp => !emp.managerId).length > 0 || 
-              filteredEmployees.agents.filter(emp => !emp.managerId).length > 0) && (
-              <div className="bg-white rounded-xl p-6 border-l-4 border-red-500 shadow-sm">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold text-gray-900 flex items-center">
-                    <div className="w-8 h-8 bg-red-100 rounded-full mr-3 flex items-center justify-center border-2 border-red-300 animate-pulse">
-                      <span className="text-red-700 text-lg font-bold">⚠️</span>
-                    </div>
-                    Unassigned Employees
-                    <span className="ml-3 px-3 py-1 bg-red-100 text-red-800 text-sm font-semibold rounded-full border border-red-200 animate-pulse">
-                      Action Required
-                    </span>
-                  </h3>
-                  <div className="text-sm text-gray-700 bg-red-100 px-3 py-2 rounded-lg">
-                    <span className="font-semibold text-red-800">
-                      {[...filteredEmployees.teamLeads, ...filteredEmployees.agents].filter(emp => !emp.managerId).length}
-                    </span> Unassigned
-                  </div>
-                </div>
-                
-                <div className="bg-gradient-to-r from-yellow-100 to-orange-100 border border-yellow-300 rounded-lg p-4 mb-6">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-white font-bold">!</span>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-yellow-800 mb-1">Assignment Required</h4>
-                      <p className="text-sm text-yellow-700">
-                        These employees need to be assigned to a Sales Manager. Use drag & drop to move them to the appropriate manager's team section above.
-                      </p>
+            {(selectedManagerId === "all" ||
+              selectedManagerId === "unassigned") &&
+              (filteredEmployees.teamLeads.filter((emp) => !emp.managerId)
+                .length > 0 ||
+                filteredEmployees.agents.filter((emp) => !emp.managerId)
+                  .length > 0) && (
+                <div className="bg-white rounded-xl p-6 border-l-4 border-red-500 shadow-sm">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                      <div className="w-8 h-8 bg-red-100 rounded-full mr-3 flex items-center justify-center border-2 border-red-300 animate-pulse">
+                        <span className="text-red-700 text-lg font-bold">
+                          ⚠️
+                        </span>
+                      </div>
+                      Unassigned Employees
+                      <span className="ml-3 px-3 py-1 bg-red-100 text-red-800 text-sm font-semibold rounded-full border border-red-200 animate-pulse">
+                        Action Required
+                      </span>
+                    </h3>
+                    <div className="text-sm text-gray-700 bg-red-100 px-3 py-2 rounded-lg">
+                      <span className="font-semibold text-red-800">
+                        {
+                          [
+                            ...filteredEmployees.teamLeads,
+                            ...filteredEmployees.agents,
+                          ].filter((emp) => !emp.managerId).length
+                        }
+                      </span>{" "}
+                      Unassigned
                     </div>
                   </div>
-                </div>
-                
-                <div className="bg-white rounded-lg p-4 border-2 border-dashed border-red-300">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
-                    {[...filteredEmployees.teamLeads, ...filteredEmployees.agents]
-                      .filter(emp => !emp.managerId)
-                      .sort((a, b) => {
-                        // Team Leads first, then Agents
-                        if (a.role === 'Team Lead' && b.role === 'Agent') return -1;
-                        if (a.role === 'Agent' && b.role === 'Team Lead') return 1;
-                        return a.name.localeCompare(b.name);
-                      })
-                      .map((employee) => (
-                        <div key={employee.id} className="relative">
-                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center z-10">
-                            <span className="text-white text-xs font-bold">!</span>
+
+                  <div className="bg-gradient-to-r from-yellow-100 to-orange-100 border border-yellow-300 rounded-lg p-4 mb-6">
+                    <div className="flex items-start space-x-3">
+                      <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-white font-bold">!</span>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-yellow-800 mb-1">
+                          Assignment Required
+                        </h4>
+                        <p className="text-sm text-yellow-700">
+                          These employees need to be assigned to a Sales
+                          Manager. Use drag & drop to move them to the
+                          appropriate manager's team section above.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-lg p-4 border-2 border-dashed border-red-300">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                      {[
+                        ...filteredEmployees.teamLeads,
+                        ...filteredEmployees.agents,
+                      ]
+                        .filter((emp) => !emp.managerId)
+                        .sort((a, b) => {
+                          // Team Leads first, then Agents
+                          if (a.role === "Team Lead" && b.role === "Agent")
+                            return -1;
+                          if (a.role === "Agent" && b.role === "Team Lead")
+                            return 1;
+                          return a.name.localeCompare(b.name);
+                        })
+                        .map((employee) => (
+                          <div key={employee.id} className="relative">
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center z-10">
+                              <span className="text-white text-xs font-bold">
+                                !
+                              </span>
+                            </div>
+                            <div
+                              onClick={() => handleView(employee)}
+                              className="cursor-pointer transform hover:scale-105 transition-transform"
+                            >
+                              <EmployeeCard
+                                key={employee.id}
+                                employee={employee}
+                                onView={handleView}
+                                onEdit={handleEdit}
+                                onPromote={(emp) =>
+                                  handlePromote(emp.id, emp.role)
+                                }
+                                onTransfer={handleTransfer}
+                                onTerminate={handleTerminate}
+                                onSelect={handleEmployeeSelect}
+                                isSelected={selectedEmployees.has(employee.id)}
+                                showBulkActions={showBulkActions}
+                                isDragMode={true}
+                                onDragStart={handleDragStart}
+                                onDragEnd={handleDragEnd}
+                              />
+                            </div>
                           </div>
-                          <div onClick={() => handleView(employee)} className="cursor-pointer transform hover:scale-105 transition-transform">
-                            <EmployeeCard
-                              key={employee.id}
-                              employee={employee}
-                              onView={handleView}
-                              onEdit={handleEdit}
-                              onPromote={(emp) => handlePromote(emp.id, emp.role)}
-                              onTransfer={handleTransfer}
-                              onTerminate={handleTerminate}
-                              onSelect={handleEmployeeSelect}
-                              isSelected={selectedEmployees.has(employee.id)}
-                              showBulkActions={showBulkActions}
-                              isDragMode={true}
-                              onDragStart={handleDragStart}
-                              onDragEnd={handleDragEnd}
-                            />
-                          </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
         )}
 
         {/* Bulk Management View - Streamlined landscape layout */}
-        {viewMode === 'bulk-manage' && (
+        {viewMode === "bulk-manage" && (
           <div className="space-y-6">
             {/* Bulk Management Header */}
             <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
@@ -1871,14 +2642,20 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                 </h3>
                 <div className="flex items-center space-x-4">
                   <span className="text-sm text-gray-600">
-                    <span className="font-semibold text-indigo-600">{selectedEmployees.size}</span> employees selected
+                    <span className="font-semibold text-indigo-600">
+                      {selectedEmployees.size}
+                    </span>{" "}
+                    employees selected
                   </span>
                   {selectedEmployees.size > 0 && (
                     <div className="flex items-center space-x-2">
                       <select
                         onChange={(e) => {
                           if (e.target.value && selectedEmployees.size > 0) {
-                            handleBulkReassign(Array.from(selectedEmployees), e.target.value);
+                            handleBulkReassign(
+                              Array.from(selectedEmployees),
+                              e.target.value
+                            );
                             setSelectedEmployees(new Set());
                           }
                         }}
@@ -1886,7 +2663,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                         defaultValue=""
                       >
                         <option value="">Reassign to...</option>
-                        {filteredEmployees.managers.map(manager => (
+                        {filteredEmployees.managers.map((manager) => (
                           <option key={manager.id} value={manager.id}>
                             {manager.name} ({manager.site})
                           </option>
@@ -1902,17 +2679,21 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                   )}
                 </div>
               </div>
-              
+
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-start space-x-3">
                   <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                     <span className="text-white text-xs">💡</span>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-blue-900 mb-1">How to use Bulk Management</h4>
+                    <h4 className="font-semibold text-blue-900 mb-1">
+                      How to use Bulk Management
+                    </h4>
                     <p className="text-sm text-blue-800">
-                      Check boxes to select multiple employees, then use the "Reassign to..." dropdown to quickly move them to a new manager. 
-                      This view optimizes the layout for efficient bulk operations.
+                      Check boxes to select multiple employees, then use the
+                      "Reassign to..." dropdown to quickly move them to a new
+                      manager. This view optimizes the layout for efficient bulk
+                      operations.
                     </p>
                   </div>
                 </div>
@@ -1933,8 +2714,15 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => {
-                          const teamLeadIds = filteredEmployees.teamLeads.map(emp => emp.id);
-                                                     setSelectedEmployees(new Set([...Array.from(selectedEmployees), ...teamLeadIds]));
+                          const teamLeadIds = filteredEmployees.teamLeads.map(
+                            (emp) => emp.id
+                          );
+                          setSelectedEmployees(
+                            new Set([
+                              ...Array.from(selectedEmployees),
+                              ...teamLeadIds,
+                            ])
+                          );
                         }}
                         className="px-3 py-1 text-sm text-green-700 hover:text-green-900 border border-green-300 rounded-md hover:bg-green-100"
                       >
@@ -1943,7 +2731,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50">
@@ -1952,47 +2740,89 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                           <input
                             type="checkbox"
                             onChange={(e) => {
-                              const teamLeadIds = filteredEmployees.teamLeads.map(emp => emp.id);
+                              const teamLeadIds =
+                                filteredEmployees.teamLeads.map(
+                                  (emp) => emp.id
+                                );
                               if (e.target.checked) {
-                                setSelectedEmployees(new Set([...Array.from(selectedEmployees), ...teamLeadIds]));
+                                setSelectedEmployees(
+                                  new Set([
+                                    ...Array.from(selectedEmployees),
+                                    ...teamLeadIds,
+                                  ])
+                                );
                               } else {
                                 const newSelected = new Set(selectedEmployees);
-                                teamLeadIds.forEach(id => newSelected.delete(id));
+                                teamLeadIds.forEach((id) =>
+                                  newSelected.delete(id)
+                                );
                                 setSelectedEmployees(newSelected);
                               }
                             }}
                             className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                           />
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Site</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Manager</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quick Reassign</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Employee
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Site
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Current Manager
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Start Date
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Quick Reassign
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {filteredEmployees.teamLeads.map((employee) => {
-                        const currentManager = filteredEmployees.managers.find(m => m.id === employee.managerId);
+                        const currentManager = filteredEmployees.managers.find(
+                          (m) => m.id === employee.managerId
+                        );
                         return (
-                          <tr key={employee.id} className={`hover:bg-gray-50 ${selectedEmployees.has(employee.id) ? 'bg-indigo-50' : ''}`}>
+                          <tr
+                            key={employee.id}
+                            className={`hover:bg-gray-50 ${
+                              selectedEmployees.has(employee.id)
+                                ? "bg-indigo-50"
+                                : ""
+                            }`}
+                          >
                             <td className="px-6 py-4 whitespace-nowrap">
                               <input
                                 type="checkbox"
                                 checked={selectedEmployees.has(employee.id)}
-                                onChange={(e) => handleEmployeeSelect(employee.id, e.target.checked)}
+                                onChange={(e) =>
+                                  handleEmployeeSelect(
+                                    employee.id,
+                                    e.target.checked
+                                  )
+                                }
                                 className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                               />
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
                                 <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                                  <span className="text-green-700 text-sm">🎯</span>
+                                  <span className="text-green-700 text-sm">
+                                    🎯
+                                  </span>
                                 </div>
                                 <div>
-                                  <div className="text-sm font-semibold text-gray-900">{employee.name}</div>
-                                  <div className="text-sm text-gray-500">Team Lead</div>
+                                  <div className="text-sm font-semibold text-gray-900">
+                                    {employee.name}
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    Team Lead
+                                  </div>
                                 </div>
                               </div>
                             </td>
@@ -2003,13 +2833,19 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {currentManager ? (
-                                <span className="font-medium">{currentManager.name}</span>
+                                <span className="font-medium">
+                                  {currentManager.name}
+                                </span>
                               ) : (
-                                <span className="text-red-600 font-medium">⚠️ Unassigned</span>
+                                <span className="text-red-600 font-medium">
+                                  ⚠️ Unassigned
+                                </span>
                               )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {new Date(employee.startDate).toLocaleDateString()}
+                              {new Date(
+                                employee.startDate
+                              ).toLocaleDateString()}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <select
@@ -2022,7 +2858,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                                 defaultValue=""
                               >
                                 <option value="">Move to...</option>
-                                {filteredEmployees.managers.map(manager => (
+                                {filteredEmployees.managers.map((manager) => (
                                   <option key={manager.id} value={manager.id}>
                                     {manager.name} ({manager.site})
                                   </option>
@@ -2068,8 +2904,15 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => {
-                          const agentIds = filteredEmployees.agents.map(emp => emp.id);
-                                                     setSelectedEmployees(new Set([...Array.from(selectedEmployees), ...agentIds]));
+                          const agentIds = filteredEmployees.agents.map(
+                            (emp) => emp.id
+                          );
+                          setSelectedEmployees(
+                            new Set([
+                              ...Array.from(selectedEmployees),
+                              ...agentIds,
+                            ])
+                          );
                         }}
                         className="px-3 py-1 text-sm text-gray-700 hover:text-gray-900 border border-gray-300 rounded-md hover:bg-gray-100"
                       >
@@ -2078,7 +2921,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50">
@@ -2087,49 +2930,93 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                           <input
                             type="checkbox"
                             onChange={(e) => {
-                              const agentIds = filteredEmployees.agents.map(emp => emp.id);
+                              const agentIds = filteredEmployees.agents.map(
+                                (emp) => emp.id
+                              );
                               if (e.target.checked) {
-                                setSelectedEmployees(new Set([...Array.from(selectedEmployees), ...agentIds]));
+                                setSelectedEmployees(
+                                  new Set([
+                                    ...Array.from(selectedEmployees),
+                                    ...agentIds,
+                                  ])
+                                );
                               } else {
                                 const newSelected = new Set(selectedEmployees);
-                                agentIds.forEach(id => newSelected.delete(id));
+                                agentIds.forEach((id) =>
+                                  newSelected.delete(id)
+                                );
                                 setSelectedEmployees(newSelected);
                               }
                             }}
                             className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                           />
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Site</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Manager</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commission</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quick Reassign</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Employee
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Site
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Current Manager
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Commission
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Start Date
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Quick Reassign
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {filteredEmployees.agents.map((employee) => {
-                        const currentManager = filteredEmployees.managers.find(m => m.id === employee.managerId);
-                        const commissionInfo = calculateAgentCommission(employee);
+                        const currentManager = filteredEmployees.managers.find(
+                          (m) => m.id === employee.managerId
+                        );
+                        const commissionInfo =
+                          calculateAgentCommission(employee);
                         return (
-                          <tr key={employee.id} className={`hover:bg-gray-50 ${selectedEmployees.has(employee.id) ? 'bg-indigo-50' : ''}`}>
+                          <tr
+                            key={employee.id}
+                            className={`hover:bg-gray-50 ${
+                              selectedEmployees.has(employee.id)
+                                ? "bg-indigo-50"
+                                : ""
+                            }`}
+                          >
                             <td className="px-6 py-4 whitespace-nowrap">
                               <input
                                 type="checkbox"
                                 checked={selectedEmployees.has(employee.id)}
-                                onChange={(e) => handleEmployeeSelect(employee.id, e.target.checked)}
+                                onChange={(e) =>
+                                  handleEmployeeSelect(
+                                    employee.id,
+                                    e.target.checked
+                                  )
+                                }
                                 className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                               />
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
                                 <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mr-3">
-                                  <span className="text-gray-700 text-sm">💼</span>
+                                  <span className="text-gray-700 text-sm">
+                                    💼
+                                  </span>
                                 </div>
                                 <div>
-                                  <div className="text-sm font-semibold text-gray-900">{employee.name}</div>
-                                  <div className="text-sm text-gray-500">Sales Agent</div>
+                                  <div className="text-sm font-semibold text-gray-900">
+                                    {employee.name}
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    Sales Agent
+                                  </div>
                                 </div>
                               </div>
                             </td>
@@ -2140,27 +3027,42 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {currentManager ? (
-                                <span className="font-medium">{currentManager.name}</span>
+                                <span className="font-medium">
+                                  {currentManager.name}
+                                </span>
                               ) : (
-                                <span className="text-red-600 font-medium">⚠️ Unassigned</span>
+                                <span className="text-red-600 font-medium">
+                                  ⚠️ Unassigned
+                                </span>
                               )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center space-x-2">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                  commissionInfo?.tier === 'veteran' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
-                                }`}>
-                                  {commissionInfo?.currentCommissionRate ? commissionInfo.currentCommissionRate * 100 : 0}%
+                                <span
+                                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                    commissionInfo?.tier === "veteran"
+                                      ? "bg-green-100 text-green-800"
+                                      : "bg-blue-100 text-blue-800"
+                                  }`}
+                                >
+                                  {commissionInfo?.currentCommissionRate
+                                    ? commissionInfo.currentCommissionRate * 100
+                                    : 0}
+                                  %
                                 </span>
-                                {commissionInfo?.willChangeToVeteran && commissionInfo?.daysUntilChange && commissionInfo?.daysUntilChange <= 7 && (
-                                  <span className="text-orange-600 text-xs font-medium">
-                                    🎯 {commissionInfo?.daysUntilChange}d
-                                  </span>
-                                )}
+                                {commissionInfo?.willChangeToVeteran &&
+                                  commissionInfo?.daysUntilChange &&
+                                  commissionInfo?.daysUntilChange <= 7 && (
+                                    <span className="text-orange-600 text-xs font-medium">
+                                      🎯 {commissionInfo?.daysUntilChange}d
+                                    </span>
+                                  )}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {new Date(employee.startDate).toLocaleDateString()}
+                              {new Date(
+                                employee.startDate
+                              ).toLocaleDateString()}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <select
@@ -2173,7 +3075,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                                 defaultValue=""
                               >
                                 <option value="">Move to...</option>
-                                {filteredEmployees.managers.map(manager => (
+                                {filteredEmployees.managers.map((manager) => (
                                   <option key={manager.id} value={manager.id}>
                                     {manager.name} ({manager.site})
                                   </option>
@@ -2212,28 +3114,41 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                   <span className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center mr-3">
                     <span className="text-white text-sm">👔</span>
                   </span>
-                  Sales Managers - Available Drop Targets ({filteredEmployees.managers.length})
+                  Sales Managers - Available Drop Targets (
+                  {filteredEmployees.managers.length})
                 </h4>
               </div>
-              
+
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {filteredEmployees.managers.map((manager) => {
-                    const teamSize = [...filteredEmployees.teamLeads, ...filteredEmployees.agents]
-                      .filter(emp => emp.managerId === manager.id).length;
+                    const teamSize = [
+                      ...filteredEmployees.teamLeads,
+                      ...filteredEmployees.agents,
+                    ].filter((emp) => emp.managerId === manager.id).length;
                     return (
-                      <div key={manager.id} className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                      <div
+                        key={manager.id}
+                        className="bg-blue-50 rounded-lg p-4 border border-blue-200"
+                      >
                         <div className="flex items-center mb-2">
                           <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mr-3">
                             <span className="text-white text-sm">👔</span>
                           </div>
                           <div>
-                            <div className="font-semibold text-blue-900">{manager.name}</div>
-                            <div className="text-sm text-blue-700">{manager.site} Site</div>
+                            <div className="font-semibold text-blue-900">
+                              {manager.name}
+                            </div>
+                            <div className="text-sm text-blue-700">
+                              {manager.site} Site
+                            </div>
                           </div>
                         </div>
                         <div className="text-sm text-blue-800">
-                          Current team: <span className="font-semibold">{teamSize} members</span>
+                          Current team:{" "}
+                          <span className="font-semibold">
+                            {teamSize} members
+                          </span>
                         </div>
                       </div>
                     );
@@ -2255,14 +3170,25 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
         onDelete={handleEmployeeDelete}
         onReassign={(employeeId, newManagerId) => {
           addPendingChange({
-            type: 'move',
-            employeeName: allEmployees.find(emp => emp.id === employeeId)?.name || 'Employee',
-            description: `Reassign ${allEmployees.find(emp => emp.id === employeeId)?.name} to ${allEmployees.find(emp => emp.id === newManagerId)?.name}'s team`
+            type: "move",
+            employeeName:
+              allEmployees.find((emp) => emp.id === employeeId)?.name ||
+              "Employee",
+            description: `Reassign ${
+              allEmployees.find((emp) => emp.id === employeeId)?.name
+            } to ${
+              allEmployees.find((emp) => emp.id === newManagerId)?.name
+            }'s team`,
           });
           closeModal();
-          alert('📝 Change queued: Employee will be reassigned when you apply changes');
+          alert(
+            "📝 Change queued: Employee will be reassigned when you apply changes"
+          );
         }}
-        availableManagers={managers}
+        availableManagers={allEmployees.filter(
+          (emp) => emp.role === "Sales Manager" && emp.status !== "terminated"
+        )}
+        defaultSite={site}
       />
 
       {/* Bulk Actions Modal */}
@@ -2297,7 +3223,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
             onClick={handleShowQuickAssign}
             className="bg-indigo-600 text-white px-3 py-2 rounded-lg shadow-lg hover:bg-indigo-700 flex items-center text-sm transition-all"
           >
-            🎯 Assign {draggedEmployee?.name.split(' ')[0]}
+            🎯 Assign {draggedEmployee?.name.split(" ")[0]}
           </button>
         </div>
       )}
@@ -2310,10 +3236,10 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
               🎯 Quick Assign
             </h3>
             <p className="text-xs text-gray-600">
-              {draggedEmployee?.name.split(' ')[0]} • {draggedEmployee?.role}
+              {draggedEmployee?.name.split(" ")[0]} • {draggedEmployee?.role}
             </p>
           </div>
-          
+
           <div className="space-y-1 max-h-48 overflow-y-auto">
             {filteredEmployees.managers.map((manager) => {
               const canAssign = validateMove(draggedEmployee, manager).valid;
@@ -2323,9 +3249,9 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                   onClick={() => handleQuickAssign(manager.id)}
                   disabled={!canAssign}
                   className={`w-full text-left p-2 rounded text-xs transition-colors ${
-                    canAssign 
-                      ? 'bg-green-50 hover:bg-green-100 text-green-800 border border-green-200' 
-                      : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200'
+                    canAssign
+                      ? "bg-green-50 hover:bg-green-100 text-green-800 border border-green-200"
+                      : "bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200"
                   }`}
                 >
                   <div className="font-medium">{manager.name}</div>
@@ -2348,7 +3274,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
               Choose a manager for {draggedEmployee?.name}
             </p>
           </div>
-          
+
           <div className="space-y-2">
             {filteredEmployees.managers.map((manager) => {
               const canAssign = validateMove(draggedEmployee, manager).valid;
@@ -2358,13 +3284,15 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
                   onClick={() => handleQuickAssign(manager.id)}
                   disabled={!canAssign}
                   className={`w-full text-left p-2 rounded-md text-sm transition-colors ${
-                    canAssign 
-                      ? 'bg-green-50 hover:bg-green-100 text-green-800 border border-green-200' 
-                      : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200'
+                    canAssign
+                      ? "bg-green-50 hover:bg-green-100 text-green-800 border border-green-200"
+                      : "bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200"
                   }`}
                 >
                   <div className="font-medium">{manager.name}</div>
-                  <div className="text-xs opacity-75">{manager.site} - Sales Manager</div>
+                  <div className="text-xs opacity-75">
+                    {manager.site} - Sales Manager
+                  </div>
                   {!canAssign && (
                     <div className="text-xs text-red-500 mt-1">
                       {validateMove(draggedEmployee, manager).reason}
@@ -2374,7 +3302,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
               );
             })}
           </div>
-          
+
           <button
             onClick={handleCancelQuickAssign}
             className="w-full mt-3 px-3 py-1 bg-gray-100 text-gray-600 rounded-md text-xs hover:bg-gray-200"
@@ -2394,9 +3322,9 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
       {isDragging && (
         <>
           {/* Top scroll zone */}
-          <div 
+          <div
             className="fixed top-0 left-0 right-0 h-20 bg-gradient-to-b from-blue-200 to-transparent opacity-50 z-40 pointer-events-none"
-            style={{ backdropFilter: 'blur(1px)' }}
+            style={{ backdropFilter: "blur(1px)" }}
           >
             <div className="flex items-center justify-center h-full">
               <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-medium">
@@ -2404,11 +3332,11 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
               </div>
             </div>
           </div>
-          
+
           {/* Bottom scroll zone */}
-          <div 
+          <div
             className="fixed bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-blue-200 to-transparent opacity-50 z-40 pointer-events-none"
-            style={{ backdropFilter: 'blur(1px)' }}
+            style={{ backdropFilter: "blur(1px)" }}
           >
             <div className="flex items-center justify-center h-full">
               <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-medium">
@@ -2416,11 +3344,11 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
               </div>
             </div>
           </div>
-          
+
           {/* Left scroll zone */}
-          <div 
+          <div
             className="fixed top-0 left-0 bottom-0 w-20 bg-gradient-to-r from-blue-200 to-transparent opacity-50 z-40 pointer-events-none"
-            style={{ backdropFilter: 'blur(1px)' }}
+            style={{ backdropFilter: "blur(1px)" }}
           >
             <div className="flex items-center justify-center h-full">
               <div className="bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-medium transform -rotate-90">
@@ -2428,11 +3356,11 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
               </div>
             </div>
           </div>
-          
+
           {/* Right scroll zone */}
-          <div 
+          <div
             className="fixed top-0 right-0 bottom-0 w-20 bg-gradient-to-l from-blue-200 to-transparent opacity-50 z-40 pointer-events-none"
-            style={{ backdropFilter: 'blur(1px)' }}
+            style={{ backdropFilter: "blur(1px)" }}
           >
             <div className="flex items-center justify-center h-full">
               <div className="bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-medium transform rotate-90">
@@ -2447,10 +3375,12 @@ export const OrgChart: React.FC<OrgChartProps> = ({ site, showBulkActions = fals
               <div className="animate-spin">🖱️</div>
               <div className="text-sm font-medium">Mouse Wheel Active</div>
             </div>
-            <div className="text-xs opacity-90 mt-1">Use scroll wheel to navigate while dragging</div>
+            <div className="text-xs opacity-90 mt-1">
+              Use scroll wheel to navigate while dragging
+            </div>
           </div>
         </>
       )}
     </>
   );
-}; 
+};

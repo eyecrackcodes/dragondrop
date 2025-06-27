@@ -1,14 +1,31 @@
-import React, { useState } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
-import { Site } from './types';
-import { OrgChart } from './components/OrgChart';
-import { CommissionDashboard } from './components/CommissionDashboard';
-import { useFirebaseCommissionAlerts, useFirebaseEmployees, useFirebaseConnection } from './hooks/useFirebaseData';
-import { useMockCommissionAlerts, useMockEmployees } from './hooks/useMockData';
-import { MapPinIcon, ExclamationTriangleIcon, ChartBarIcon, UserGroupIcon } from '@heroicons/react/24/outline';
-import './App.css';
+import React, { useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  DndContext,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { Site } from "./types";
+import { OrgChart } from "./components/OrgChart";
+import { CommissionDashboard } from "./components/CommissionDashboard";
+import {
+  useFirebaseCommissionAlerts,
+  useFirebaseEmployees,
+  useFirebaseConnection,
+} from "./hooks/useFirebaseData";
+import { useMockCommissionAlerts, useMockEmployees } from "./hooks/useMockData";
+import {
+  MapPinIcon,
+  ExclamationTriangleIcon,
+  ChartBarIcon,
+  UserGroupIcon,
+  SparklesIcon,
+} from "@heroicons/react/24/outline";
+import "./App.css";
 
 // Create a client
 const queryClient = new QueryClient({
@@ -20,97 +37,138 @@ const queryClient = new QueryClient({
   },
 });
 
-type ActiveView = 'org-chart' | 'commission-dashboard';
+type ActiveView = "org-chart" | "commission-dashboard";
 
 function AppContent() {
-  const [selectedSite, setSelectedSite] = useState<Site>('Austin');
+  const [selectedSite, setSelectedSite] = useState<Site>("Austin");
   const [showBulkActions, setShowBulkActions] = useState(false);
-  const [activeView, setActiveView] = useState<ActiveView>('org-chart');
-  
+  const [activeView, setActiveView] = useState<ActiveView>("org-chart");
+
   // Check Firebase connection status
   const { isConnected, isConfigured } = useFirebaseConnection();
-  
+
   // Use Firebase data if available, otherwise fall back to mock data
   const firebaseAlerts = useFirebaseCommissionAlerts();
   const mockAlerts = useMockCommissionAlerts();
   const firebaseEmployees = useFirebaseEmployees();
   const mockEmployees = useMockEmployees();
-  
+
   // Select data source based on Firebase availability
-  const { hasAlerts, agentsApproachingMilestone, agentsNeedingUpdate } = isConnected ? firebaseAlerts : mockAlerts;
+  const { hasAlerts, agentsApproachingMilestone, agentsNeedingUpdate } =
+    isConnected ? firebaseAlerts : mockAlerts;
   const { employees } = isConnected ? firebaseEmployees : mockEmployees;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 shadow-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            {/* Logo and branding */}
+    <div className="min-h-screen scroll-smooth">
+      {/* Compact Premium Header */}
+      <header className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 border-b border-indigo-500/30">
+        {/* Subtle background effects */}
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-900/20 via-transparent to-cyan-900/20"></div>
+        <div
+          className="absolute inset-0 opacity-30"
+          style={{
+            backgroundImage: `radial-gradient(circle at 25% 25%, rgba(99, 102, 241, 0.15) 0%, transparent 25%),
+                           radial-gradient(circle at 75% 75%, rgba(168, 85, 247, 0.1) 0%, transparent 25%)`,
+          }}
+        ></div>
+
+        {/* Compact Content */}
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-14">
+            {/* Cool Dragon Logo & Branding */}
             <div className="flex items-center space-x-4">
-              <div className="flex items-center">
-                <div className="bg-gradient-to-br from-orange-400 to-red-500 rounded-xl p-3 shadow-lg">
-                  <span className="text-3xl filter drop-shadow-lg">🐉</span>
+              <div className="flex items-center group">
+                {/* Enhanced Dragon Design */}
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-orange-500 via-red-500 to-pink-600 rounded-xl blur-md opacity-60 group-hover:opacity-90 transition-all duration-300 animate-pulse"></div>
+                  <div className="relative bg-gradient-to-br from-orange-400 via-red-500 to-pink-500 rounded-xl p-2.5 shadow-xl border border-white/30 backdrop-blur-sm transform group-hover:scale-110 transition-all duration-300">
+                    <div className="relative">
+                      <span className="text-2xl filter drop-shadow-lg block transform group-hover:rotate-12 transition-transform duration-300">
+                        🐉
+                      </span>
+                      <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-ping"></div>
+                    </div>
+                  </div>
                 </div>
-                <div className="ml-4">
-                  <h1 className="text-3xl font-bold text-white drop-shadow-md">Dragon Drop</h1>
-                  <p className="text-blue-200 text-sm font-medium">Sales Organization Manager</p>
+
+                {/* Compact Branding */}
+                <div className="ml-3">
+                  <h1 className="text-xl font-bold text-white drop-shadow-lg bg-gradient-to-r from-white via-blue-100 to-purple-100 bg-clip-text text-transparent">
+                    Dragon Drop
+                  </h1>
+                  <div className="flex items-center">
+                    <SparklesIcon className="w-3 h-3 text-blue-300 mr-1" />
+                    <p className="text-blue-200 text-xs font-medium tracking-wide">
+                      Sales Org Manager
+                    </p>
+                  </div>
                 </div>
               </div>
-              
-              {/* Connection status */}
-              <div className="ml-6">
-                {isConnected ? (
-                  <div className="inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold bg-green-500 text-white shadow-lg border-2 border-green-400">
-                    <div className="w-3 h-3 bg-green-200 rounded-full mr-3 animate-pulse"></div>
-                    🔥 Firebase Connected
-                  </div>
-                ) : (
-                  <div className="inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold bg-amber-500 text-white shadow-lg border-2 border-amber-400">
-                    <div className="w-3 h-3 bg-amber-200 rounded-full mr-3 animate-pulse"></div>
-                    🧪 Demo Mode
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Site selector and controls */}
-            <div className="flex items-center space-x-6">
-              <div className="flex bg-white/10 backdrop-blur-md rounded-xl p-1 shadow-lg border border-white/20">
-                <button
-                  onClick={() => setSelectedSite('Austin')}
-                  className={`px-6 py-3 text-sm font-semibold rounded-lg transition-all duration-200 flex items-center ${
-                    selectedSite === 'Austin'
-                      ? 'bg-white text-slate-900 shadow-md transform scale-105'
-                      : 'text-white hover:bg-white/20 hover:scale-105'
+
+              {/* Compact Connection Status */}
+              <div className="ml-4">
+                <div
+                  className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border backdrop-blur-sm ${
+                    isConnected
+                      ? "bg-green-500/20 border-green-400/50 text-green-100"
+                      : "bg-amber-500/20 border-amber-400/50 text-amber-100"
                   }`}
                 >
-                  <MapPinIcon className="w-5 h-5 mr-2" />
+                  <div
+                    className={`w-2 h-2 rounded-full mr-2 ${
+                      isConnected
+                        ? "bg-green-400 animate-pulse"
+                        : "bg-amber-400 animate-bounce"
+                    }`}
+                  ></div>
+                  <span className="mr-1">{isConnected ? "🔥" : "🧪"}</span>
+                  <span>{isConnected ? "Live" : "Demo"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Compact Controls */}
+            <div className="flex items-center space-x-3">
+              {/* Compact Site Selector */}
+              <div className="flex bg-white/10 rounded-lg p-1 backdrop-blur-sm border border-white/20">
+                <button
+                  onClick={() => setSelectedSite("Austin")}
+                  className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-all duration-200 flex items-center ${
+                    selectedSite === "Austin"
+                      ? "bg-white text-slate-900 shadow-lg"
+                      : "text-white hover:bg-white/20"
+                  }`}
+                >
+                  <MapPinIcon className="w-3 h-3 mr-1.5" />
                   Austin
                 </button>
                 <button
-                  onClick={() => setSelectedSite('Charlotte')}
-                  className={`px-6 py-3 text-sm font-semibold rounded-lg transition-all duration-200 flex items-center ${
-                    selectedSite === 'Charlotte'
-                      ? 'bg-white text-slate-900 shadow-md transform scale-105'
-                      : 'text-white hover:bg-white/20 hover:scale-105'
+                  onClick={() => setSelectedSite("Charlotte")}
+                  className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-all duration-200 flex items-center ${
+                    selectedSite === "Charlotte"
+                      ? "bg-white text-slate-900 shadow-lg"
+                      : "text-white hover:bg-white/20"
                   }`}
                 >
-                  <MapPinIcon className="w-5 h-5 mr-2" />
+                  <MapPinIcon className="w-3 h-3 mr-1.5" />
                   Charlotte
                 </button>
               </div>
-              
-              {activeView === 'org-chart' && (
+
+              {/* Compact Bulk Actions Toggle */}
+              {activeView === "org-chart" && (
                 <button
                   onClick={() => setShowBulkActions(!showBulkActions)}
-                  className={`px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-200 transform hover:scale-105 ${
+                  className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-all duration-200 backdrop-blur-sm border ${
                     showBulkActions
-                      ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-lg border-2 border-emerald-400'
-                      : 'bg-white/20 text-white hover:bg-white/30 backdrop-blur-md shadow-lg border border-white/30'
+                      ? "bg-emerald-500/90 text-white border-emerald-400/50 shadow-lg"
+                      : "text-white hover:bg-white/20 border-white/30"
                   }`}
                 >
-                  {showBulkActions ? '✅ Bulk Mode ON' : '⚡ Enable Bulk Actions'}
+                  <div className="flex items-center">
+                    <SparklesIcon className="w-3 h-3 mr-1.5" />
+                    {showBulkActions ? "Bulk On" : "Bulk Mode"}
+                  </div>
                 </button>
               )}
             </div>
@@ -118,164 +176,121 @@ function AppContent() {
         </div>
       </header>
 
-      {/* Navigation Tabs */}
-      <div className="bg-white shadow-lg border-b border-gray-200">
+      {/* Compact Navigation Tabs */}
+      <nav className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-1">
+          <div className="flex space-x-8">
             <button
-              onClick={() => setActiveView('org-chart')}
-              className={`py-4 px-8 font-semibold text-sm flex items-center rounded-t-xl transition-all duration-200 relative group ${
-                activeView === 'org-chart'
-                  ? 'bg-gradient-to-b from-blue-50 to-white text-blue-700 shadow-lg transform -translate-y-1'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 hover:shadow-md'
+              onClick={() => setActiveView("org-chart")}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                activeView === "org-chart"
+                  ? "border-indigo-500 text-indigo-600"
+                  : "border-transparent text-slate-600 hover:text-slate-800 hover:border-gray-300"
               }`}
             >
-              <UserGroupIcon className="w-5 h-5 mr-3" />
-              Organization Chart
-              {activeView === 'org-chart' && (
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-full"></div>
-              )}
+              <div className="flex items-center">
+                <UserGroupIcon className="w-4 h-4 mr-2" />
+                Organization Chart
+                {hasAlerts && (
+                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    <ExclamationTriangleIcon className="w-3 h-3 mr-1" />
+                    {agentsApproachingMilestone.length +
+                      agentsNeedingUpdate.length}
+                  </span>
+                )}
+              </div>
             </button>
-            <button
-              onClick={() => setActiveView('commission-dashboard')}
-              className={`py-4 px-8 font-semibold text-sm flex items-center rounded-t-xl transition-all duration-200 relative group ${
-                activeView === 'commission-dashboard'
-                  ? 'bg-gradient-to-b from-green-50 to-white text-green-700 shadow-lg transform -translate-y-1'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 hover:shadow-md'
-              }`}
-            >
-              <ChartBarIcon className="w-5 h-5 mr-3" />
-              Commission Dashboard
-              {(agentsApproachingMilestone.length > 0 || agentsNeedingUpdate.length > 0) && (
-                <div className="ml-3 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center shadow-lg animate-bounce font-bold">
-                  {agentsApproachingMilestone.length + agentsNeedingUpdate.length}
-                </div>
-              )}
-              {activeView === 'commission-dashboard' && (
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 rounded-full"></div>
-              )}
-            </button>
-          </nav>
-        </div>
-      </div>
 
-      {/* Commission Alerts */}
-      {hasAlerts && (
-        <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-l-4 border-amber-400 shadow-md">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
-                  <ExclamationTriangleIcon className="h-6 w-6 text-amber-600" />
-                </div>
+            <button
+              onClick={() => setActiveView("commission-dashboard")}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                activeView === "commission-dashboard"
+                  ? "border-indigo-500 text-indigo-600"
+                  : "border-transparent text-slate-600 hover:text-slate-800 hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-center">
+                <ChartBarIcon className="w-4 h-4 mr-2" />
+                Commission Dashboard
               </div>
-              <div className="ml-4 flex-1">
-                <div className="flex items-center space-x-2">
-                  <span className="text-lg font-bold text-amber-800">⚠️ Commission Alerts</span>
-                  <div className="bg-amber-200 text-amber-800 px-3 py-1 rounded-full text-xs font-semibold">
-                    {agentsApproachingMilestone.length + agentsNeedingUpdate.length} Alert{(agentsApproachingMilestone.length + agentsNeedingUpdate.length) !== 1 ? 's' : ''}
-                  </div>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-4 text-sm">
-                  {agentsApproachingMilestone.length > 0 && (
-                    <div className="flex items-center text-amber-700">
-                      <span className="w-2 h-2 bg-amber-500 rounded-full mr-2"></span>
-                      <span className="font-medium">{agentsApproachingMilestone.length} agent(s)</span>
-                      <span className="ml-1">approaching 6-month milestone 🎯</span>
-                    </div>
-                  )}
-                  {agentsNeedingUpdate.length > 0 && (
-                    <div className="flex items-center text-amber-700">
-                      <span className="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
-                      <span className="font-medium">{agentsNeedingUpdate.length} agent(s)</span>
-                      <span className="ml-1">need commission structure update 💰</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            </button>
           </div>
         </div>
-      )}
+      </nav>
 
-      {/* Main content */}
-      <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {activeView === 'org-chart' ? (
-            <div className="space-y-6">
-              {/* Page header */}
-              <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-indigo-500">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-                      <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                        {selectedSite} Site Organization
-                      </span>
-                    </h2>
-                    <p className="mt-2 text-gray-600">
-                      Drag and drop employees to reorganize teams, or use bulk actions for multiple changes.
-                    </p>
-                  </div>
-                  <div className="hidden md:block">
-                    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-lg">
-                      <UserGroupIcon className="w-8 h-8 text-indigo-600" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Organization chart */}
-              <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-                <OrgChart 
-                  site={selectedSite} 
-                  showBulkActions={showBulkActions}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Dashboard header */}
-              <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-green-500">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-                      <span className="bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-                        Commission Dashboard
-                      </span>
-                    </h2>
-                    <p className="mt-2 text-gray-600">
-                      Track agent commission tiers, milestones, and performance metrics.
-                    </p>
-                  </div>
-                  <div className="hidden md:block">
-                    <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg">
-                      <ChartBarIcon className="w-8 h-8 text-green-600" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Commission dashboard */}
-              <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-                <CommissionDashboard 
-                  employees={employees}
-                  site={selectedSite}
-                />
-              </div>
-            </div>
-          )}
-        </div>
+      {/* Main Content */}
+      <main className="relative min-h-screen bg-gray-50">
+        {activeView === "org-chart" && (
+          <OrgChart site={selectedSite} showBulkActions={showBulkActions} />
+        )}
+        {activeView === "commission-dashboard" && (
+          <CommissionDashboard site={selectedSite} employees={employees} />
+        )}
       </main>
     </div>
   );
 }
 
 function App() {
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  // Configure sensors for drag and drop with auto-scroll
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px of movement before drag starts
+      },
+    })
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    console.log("🎯 Drag started:", event.active.id);
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    console.log("🎯 Drag ended:", event);
+    setActiveId(null);
+
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      // Extract the drop zone data
+      const dropZoneData = over.data.current;
+
+      if (dropZoneData && dropZoneData.onDrop) {
+        // Call the drop handler with the dragged employee ID
+        dropZoneData.onDrop(active.id as string);
+      }
+    }
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
-      <DndProvider backend={HTML5Backend}>
-        <AppContent />
-      </DndProvider>
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        autoScroll={{
+          enabled: true,
+          threshold: {
+            x: 0.2,
+            y: 0.2,
+          },
+          acceleration: 10,
+        }}
+      >
+        <div className="App">
+          <AppContent />
+        </div>
+        <DragOverlay>
+          {activeId ? (
+            <div className="bg-blue-500 text-white p-4 rounded-lg shadow-lg opacity-90">
+              Dragging employee...
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     </QueryClientProvider>
   );
 }

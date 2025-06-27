@@ -1,8 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Employee, Role, Site, CommissionTier } from '../types';
-import { XMarkIcon, UserIcon, CurrencyDollarIcon, CalendarIcon } from '@heroicons/react/24/outline';
-import { format } from 'date-fns';
-import { calculateAgentCommission, getCompensationInfo } from '../utils/commissionCalculator';
+import React, { useState, useEffect } from "react";
+import { Employee, Role, Site, CommissionTier } from "../types";
+import {
+  XMarkIcon,
+  UserIcon,
+  CurrencyDollarIcon,
+  CalendarIcon,
+} from "@heroicons/react/24/outline";
+import { format } from "date-fns";
+import {
+  calculateAgentCommission,
+  getCompensationInfo,
+} from "../utils/commissionCalculator";
 
 interface EmployeeModalProps {
   employee: Employee | null;
@@ -11,12 +19,13 @@ interface EmployeeModalProps {
   onSave: (updatedEmployee: Employee) => void;
   onDelete?: (employeeId: string) => void;
   onReassign?: (employeeId: string, newManagerId: string) => void;
-  mode: 'view' | 'edit' | 'create';
+  mode: "view" | "edit" | "create";
   availableManagers?: Employee[];
+  defaultSite?: Site;
 }
 
-const roles: Role[] = ['Sales Director', 'Sales Manager', 'Team Lead', 'Agent'];
-const sites: Site[] = ['Austin', 'Charlotte'];
+const roles: Role[] = ["Sales Director", "Sales Manager", "Team Lead", "Agent"];
+const sites: Site[] = ["Austin", "Charlotte"];
 
 export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   employee,
@@ -26,16 +35,17 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   onDelete,
   onReassign,
   mode,
-  availableManagers
+  availableManagers,
+  defaultSite = "Austin",
 }) => {
   const [formData, setFormData] = useState<Partial<Employee>>({
-    name: '',
-    role: 'Agent',
-    site: 'Austin',
+    name: "",
+    role: "Agent",
+    site: defaultSite,
     startDate: Date.now(),
-    status: 'active',
-    commissionTier: 'new',
-    notes: ''
+    status: "active",
+    commissionTier: "new",
+    notes: "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -43,20 +53,20 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   useEffect(() => {
     if (employee && isOpen) {
       setFormData({ ...employee });
-    } else if (mode === 'create' && isOpen) {
+    } else if (mode === "create" && isOpen) {
       // Set default start date to 6 months ago for new employees
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      
+
       setFormData({
-        name: '',
-        role: 'Agent',
-        site: 'Austin',
+        name: "",
+        role: "Agent",
+        site: defaultSite,
         startDate: sixMonthsAgo.getTime(),
-        status: 'active',
-        commissionTier: 'new',
-        notes: '',
-        managerId: undefined // Explicitly set to undefined initially
+        status: "active",
+        commissionTier: "new",
+        notes: "",
+        managerId: undefined, // Explicitly set to undefined initially
       });
     }
     setErrors({});
@@ -64,18 +74,18 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
 
   // Clear manager selection when site changes in create mode
   useEffect(() => {
-    if (mode === 'create' && formData.site) {
-      setFormData(prev => ({ ...prev, managerId: undefined }));
+    if (mode === "create" && formData.site) {
+      setFormData((prev) => ({ ...prev, managerId: undefined }));
     }
   }, [formData.site, mode]);
 
   // Set commission tier when role changes in create mode
   useEffect(() => {
-    if (mode === 'create' && formData.role) {
-      if (formData.role === 'Agent' || formData.role === 'Team Lead') {
-        setFormData(prev => ({ ...prev, commissionTier: 'new' }));
+    if (mode === "create" && formData.role) {
+      if (formData.role === "Agent" || formData.role === "Team Lead") {
+        setFormData((prev) => ({ ...prev, commissionTier: "new" }));
       } else {
-        setFormData(prev => ({ ...prev, commissionTier: undefined }));
+        setFormData((prev) => ({ ...prev, commissionTier: undefined }));
       }
     }
   }, [formData.role, mode]);
@@ -84,20 +94,24 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     const newErrors: Record<string, string> = {};
 
     if (!formData.name?.trim()) {
-      newErrors.name = 'Name is required';
+      newErrors.name = "Name is required";
     }
 
     if (!formData.role) {
-      newErrors.role = 'Role is required';
+      newErrors.role = "Role is required";
     }
 
     if (!formData.site) {
-      newErrors.site = 'Site is required';
+      newErrors.site = "Site is required";
     }
 
     // Require manager assignment for Team Leads and Agents
-    if ((formData.role === 'Team Lead' || formData.role === 'Agent') && !formData.managerId) {
-      newErrors.managerId = 'Manager assignment is required for Team Leads and Agents';
+    if (
+      (formData.role === "Team Lead" || formData.role === "Agent") &&
+      !formData.managerId
+    ) {
+      newErrors.managerId =
+        "Manager assignment is required for Team Leads and Agents";
     }
 
     setErrors(newErrors);
@@ -113,13 +127,13 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       role: formData.role!,
       site: formData.site!,
       startDate: formData.startDate!,
-      status: formData.status || 'active'
+      status: formData.status || "active",
     };
 
     // Create full employee object with proper ID handling
     const updatedEmployee: Employee = {
       ...baseEmployeeData,
-      id: employee?.id || `temp-${Date.now()}` // Temp ID for new employees, Firebase will replace
+      id: employee?.id || `temp-${Date.now()}`, // Temp ID for new employees, Firebase will replace
     };
 
     // Only add properties that have values
@@ -129,12 +143,12 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     if (formData.teamId) {
       updatedEmployee.teamId = formData.teamId;
     }
-    
+
     // Set commission tier for Agents and Team Leads
-    if (formData.role === 'Agent' || formData.role === 'Team Lead') {
-      updatedEmployee.commissionTier = formData.commissionTier || 'new';
+    if (formData.role === "Agent" || formData.role === "Team Lead") {
+      updatedEmployee.commissionTier = formData.commissionTier || "new";
     }
-    
+
     if (formData.notes && formData.notes.trim()) {
       updatedEmployee.notes = formData.notes.trim();
     }
@@ -145,7 +159,11 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
 
   const handleDelete = () => {
     if (employee && onDelete) {
-      if (window.confirm(`Are you sure you want to delete ${employee.name}? This action cannot be undone.`)) {
+      if (
+        window.confirm(
+          `Are you sure you want to delete ${employee.name}? This action cannot be undone.`
+        )
+      ) {
         onDelete(employee.id);
         onClose();
       }
@@ -153,14 +171,14 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   };
 
   const getCommissionDetails = () => {
-    if (!employee || employee.role !== 'Agent') return null;
+    if (!employee || employee.role !== "Agent") return null;
     return calculateAgentCommission(employee);
   };
 
   if (!isOpen) return null;
 
-  const isViewMode = mode === 'view';
-  const isCreateMode = mode === 'create';
+  const isViewMode = mode === "view";
+  const isCreateMode = mode === "create";
   const commissionDetails = getCommissionDetails();
 
   return (
@@ -169,7 +187,11 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b">
           <h2 className="text-xl font-semibold text-gray-900">
-            {isCreateMode ? 'Add New Employee' : isViewMode ? 'Employee Details' : 'Edit Employee'}
+            {isCreateMode
+              ? "Add New Employee"
+              : isViewMode
+              ? "Employee Details"
+              : "Edit Employee"}
           </h2>
           <button
             onClick={onClose}
@@ -197,14 +219,18 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                 <div>
                   <input
                     type="text"
-                    value={formData.name || ''}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    value={formData.name || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
                     className={`w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.name ? 'border-red-500' : 'border-gray-300'
+                      errors.name ? "border-red-500" : "border-gray-300"
                     }`}
                     placeholder="Enter employee name"
                   />
-                  {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
+                  {errors.name && (
+                    <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+                  )}
                 </div>
               )}
             </div>
@@ -215,28 +241,39 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                 Role *
               </label>
               {isViewMode ? (
-                <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
-                  employee?.role === 'Sales Director' ? 'bg-sales-director text-white' :
-                  employee?.role === 'Sales Manager' ? 'bg-sales-manager text-white' :
-                  employee?.role === 'Team Lead' ? 'bg-team-lead text-white' :
-                  'bg-agent text-white'
-                }`}>
+                <span
+                  className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
+                    employee?.role === "Sales Director"
+                      ? "bg-sales-director text-white"
+                      : employee?.role === "Sales Manager"
+                      ? "bg-sales-manager text-white"
+                      : employee?.role === "Team Lead"
+                      ? "bg-team-lead text-white"
+                      : "bg-agent text-white"
+                  }`}
+                >
                   {employee?.role}
                 </span>
               ) : (
                 <div>
                   <select
-                    value={formData.role || ''}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
+                    value={formData.role || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, role: e.target.value as Role })
+                    }
                     className={`w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.role ? 'border-red-500' : 'border-gray-300'
+                      errors.role ? "border-red-500" : "border-gray-300"
                     }`}
                   >
-                    {roles.map(role => (
-                      <option key={role} value={role}>{role}</option>
+                    {roles.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
                     ))}
                   </select>
-                  {errors.role && <p className="mt-1 text-sm text-red-600">{errors.role}</p>}
+                  {errors.role && (
+                    <p className="mt-1 text-sm text-red-600">{errors.role}</p>
+                  )}
                 </div>
               )}
             </div>
@@ -251,17 +288,23 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
               ) : (
                 <div>
                   <select
-                    value={formData.site || ''}
-                    onChange={(e) => setFormData({ ...formData, site: e.target.value as Site })}
+                    value={formData.site || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, site: e.target.value as Site })
+                    }
                     className={`w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.site ? 'border-red-500' : 'border-gray-300'
+                      errors.site ? "border-red-500" : "border-gray-300"
                     }`}
                   >
-                    {sites.map(site => (
-                      <option key={site} value={site}>{site}</option>
+                    {sites.map((site) => (
+                      <option key={site} value={site}>
+                        {site}
+                      </option>
                     ))}
                   </select>
-                  {errors.site && <p className="mt-1 text-sm text-red-600">{errors.site}</p>}
+                  {errors.site && (
+                    <p className="mt-1 text-sm text-red-600">{errors.site}</p>
+                  )}
                 </div>
               )}
             </div>
@@ -275,18 +318,29 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                 <div className="flex items-center">
                   <CalendarIcon className="w-5 h-5 text-gray-400 mr-2" />
                   <span className="text-gray-900">
-                    {employee ? format(new Date(employee.startDate), 'MMM dd, yyyy') : ''}
+                    {employee
+                      ? format(new Date(employee.startDate), "MMM dd, yyyy")
+                      : ""}
                   </span>
                 </div>
               ) : (
                 <input
                   type="date"
-                  value={formData.startDate ? format(new Date(formData.startDate), 'yyyy-MM-dd') : ''}
+                  value={
+                    formData.startDate
+                      ? format(new Date(formData.startDate), "yyyy-MM-dd")
+                      : ""
+                  }
                   onChange={(e) => {
                     if (e.target.value) {
                       // Create date at noon to avoid timezone issues
-                      const selectedDate = new Date(e.target.value + 'T12:00:00');
-                      setFormData({ ...formData, startDate: selectedDate.getTime() });
+                      const selectedDate = new Date(
+                        e.target.value + "T12:00:00"
+                      );
+                      setFormData({
+                        ...formData,
+                        startDate: selectedDate.getTime(),
+                      });
                     }
                   }}
                   min="2020-01-01" // Allow dates from 2020 onwards
@@ -297,14 +351,18 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
               {!isViewMode && (
                 <div className="mt-2">
                   <p className="text-xs text-gray-500 mb-2">
-                    Select the employee's start date (any date from 2020 to 2030)
+                    Select the employee's start date (any date from 2020 to
+                    2030)
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => {
                         const today = new Date();
-                        setFormData({ ...formData, startDate: today.getTime() });
+                        setFormData({
+                          ...formData,
+                          startDate: today.getTime(),
+                        });
                       }}
                       className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
                     >
@@ -315,7 +373,10 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                       onClick={() => {
                         const oneMonth = new Date();
                         oneMonth.setMonth(oneMonth.getMonth() - 1);
-                        setFormData({ ...formData, startDate: oneMonth.getTime() });
+                        setFormData({
+                          ...formData,
+                          startDate: oneMonth.getTime(),
+                        });
                       }}
                       className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
                     >
@@ -326,7 +387,10 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                       onClick={() => {
                         const threeMonths = new Date();
                         threeMonths.setMonth(threeMonths.getMonth() - 3);
-                        setFormData({ ...formData, startDate: threeMonths.getTime() });
+                        setFormData({
+                          ...formData,
+                          startDate: threeMonths.getTime(),
+                        });
                       }}
                       className="px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
                     >
@@ -337,7 +401,10 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                       onClick={() => {
                         const sixMonths = new Date();
                         sixMonths.setMonth(sixMonths.getMonth() - 6);
-                        setFormData({ ...formData, startDate: sixMonths.getTime() });
+                        setFormData({
+                          ...formData,
+                          startDate: sixMonths.getTime(),
+                        });
                       }}
                       className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
                     >
@@ -347,7 +414,10 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                       type="button"
                       onClick={() => {
                         const janTwentieth = new Date(2025, 0, 20); // January 20, 2025
-                        setFormData({ ...formData, startDate: janTwentieth.getTime() });
+                        setFormData({
+                          ...formData,
+                          startDate: janTwentieth.getTime(),
+                        });
                       }}
                       className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
                     >
@@ -360,23 +430,35 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           </div>
 
           {/* Commission Information (for Agents) */}
-          {employee?.role === 'Agent' && (
+          {employee?.role === "Agent" && (
             <div className="border border-gray-200 rounded-lg p-4">
               <h3 className="text-lg font-medium text-gray-900 mb-3 flex items-center">
                 <CurrencyDollarIcon className="w-5 h-5 mr-2" />
                 Commission Information
               </h3>
-              
+
               {isViewMode ? (
                 <div className="space-y-2 text-sm">
-                  <div><strong>Current Tier:</strong> {employee.commissionTier === 'new' ? 'New Agent' : 'Veteran Agent'}</div>
-                  <div><strong>Compensation:</strong> {getCompensationInfo(employee)}</div>
+                  <div>
+                    <strong>Current Tier:</strong>{" "}
+                    {employee.commissionTier === "new"
+                      ? "New Agent"
+                      : "Veteran Agent"}
+                  </div>
+                  <div>
+                    <strong>Compensation:</strong>{" "}
+                    {getCompensationInfo(employee)}
+                  </div>
                   {commissionDetails && (
                     <>
-                                             <div><strong>Commission Rate:</strong> {commissionDetails.currentCommissionRate * 100}%</div>
+                      <div>
+                        <strong>Commission Rate:</strong>{" "}
+                        {commissionDetails.currentCommissionRate * 100}%
+                      </div>
                       {commissionDetails.willChangeToVeteran && (
                         <div className="text-amber-600">
-                          <strong>Status Change:</strong> Will become veteran in {commissionDetails.daysUntilChange} days
+                          <strong>Status Change:</strong> Will become veteran in{" "}
+                          {commissionDetails.daysUntilChange} days
                         </div>
                       )}
                     </>
@@ -388,8 +470,13 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                     Commission Tier
                   </label>
                   <select
-                    value={formData.commissionTier || 'new'}
-                    onChange={(e) => setFormData({ ...formData, commissionTier: e.target.value as CommissionTier })}
+                    value={formData.commissionTier || "new"}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        commissionTier: e.target.value as CommissionTier,
+                      })
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="new">New Agent (First 6 months)</option>
@@ -401,103 +488,146 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           )}
 
           {/* Manager Assignment (for Team Leads and Agents) */}
-          {((employee && (employee.role === 'Team Lead' || employee.role === 'Agent')) || 
-            (isCreateMode && (formData.role === 'Team Lead' || formData.role === 'Agent'))) && 
-           availableManagers && availableManagers.length > 0 && (
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h3 className="text-lg font-medium text-gray-900 mb-3 flex items-center">
-                <UserIcon className="w-5 h-5 mr-2" />
-                Manager Assignment
-              </h3>
-              
-              <div className="space-y-3">
-                {!isCreateMode && employee && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Current Manager
-                    </label>
-                    <div className="bg-gray-50 rounded-md p-3">
-                      {employee.managerId ? (
-                        (() => {
-                          const currentManager = availableManagers.find(m => m.id === employee.managerId);
-                          return currentManager ? (
-                            <div className="flex items-center">
-                              <div className="w-2 h-2 bg-sales-manager rounded mr-2"></div>
-                              <span className="font-medium text-gray-900">{currentManager.name}</span>
-                              <span className="text-gray-500 ml-2">({currentManager.site})</span>
-                            </div>
-                          ) : (
-                            <span className="text-gray-500 italic">Manager not found</span>
-                          );
-                        })()
-                      ) : (
-                        <span className="text-red-600 font-medium">⚠️ Unassigned - Needs Manager</span>
-                      )}
-                    </div>
-                  </div>
-                )}
+          {((employee &&
+            (employee.role === "Team Lead" || employee.role === "Agent")) ||
+            (isCreateMode &&
+              (formData.role === "Team Lead" || formData.role === "Agent"))) &&
+            availableManagers &&
+            availableManagers.length > 0 && (
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-3 flex items-center">
+                  <UserIcon className="w-5 h-5 mr-2" />
+                  Manager Assignment
+                </h3>
 
-                {isCreateMode ? (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Assign Manager *
-                    </label>
-                    <select
-                      value={formData.managerId || ''}
-                      onChange={(e) => setFormData({ ...formData, managerId: e.target.value })}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
-                        errors.managerId ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      required
-                    >
-                      <option value="" disabled>Choose a manager...</option>
-                      {availableManagers
-                        .filter(manager => manager.site === formData.site) // Only show managers from same site
-                        .map(manager => (
-                          <option key={manager.id} value={manager.id}>
-                            {manager.name} - {manager.role}
-                          </option>
-                        ))}
-                    </select>
-                    {errors.managerId && <p className="mt-1 text-sm text-red-600">{errors.managerId}</p>}
-                    <p className="mt-1 text-xs text-gray-500">
-                      This employee will report to the selected manager
-                    </p>
-                  </div>
-                ) : !isViewMode && onReassign && employee && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Reassign to Manager
-                    </label>
-                    <select
-                      onChange={(e) => {
-                        if (e.target.value && employee) {
-                          if (window.confirm(`Reassign ${employee.name} to ${availableManagers.find(m => m.id === e.target.value)?.name}?`)) {
-                            onReassign(employee.id, e.target.value);
-                          }
-                          e.target.value = ''; // Reset selection
+                <div className="space-y-3">
+                  {!isCreateMode && employee && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Current Manager
+                      </label>
+                      <div className="bg-gray-50 rounded-md p-3">
+                        {employee.managerId ? (
+                          (() => {
+                            const currentManager = availableManagers.find(
+                              (m) => m.id === employee.managerId
+                            );
+                            return currentManager ? (
+                              <div className="flex items-center">
+                                <div className="w-2 h-2 bg-sales-manager rounded mr-2"></div>
+                                <span className="font-medium text-gray-900">
+                                  {currentManager.name}
+                                </span>
+                                <span className="text-gray-500 ml-2">
+                                  ({currentManager.site})
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-500 italic">
+                                Manager not found
+                              </span>
+                            );
+                          })()
+                        ) : (
+                          <span className="text-red-600 font-medium">
+                            ⚠️ Unassigned - Needs Manager
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {isCreateMode ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Assign Manager *
+                      </label>
+                      <select
+                        value={formData.managerId || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            managerId: e.target.value,
+                          })
                         }
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      defaultValue=""
-                    >
-                      <option value="" disabled>Choose a new manager...</option>
-                      {availableManagers
-                        .filter(manager => manager.id !== employee.managerId)
-                        .map(manager => (
-                          <option key={manager.id} value={manager.id}>
-                            {manager.name} - {manager.site}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
+                          errors.managerId
+                            ? "border-red-500"
+                            : "border-gray-300"
+                        }`}
+                        required
+                      >
+                        <option value="" disabled>
+                          Choose a manager...
+                        </option>
+                        {availableManagers
+                          .filter((manager) => manager.site === formData.site) // Only show managers from same site
+                          .map((manager) => (
+                            <option key={manager.id} value={manager.id}>
+                              {manager.name} - {manager.role}
+                            </option>
+                          ))}
+                      </select>
+                      {errors.managerId && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.managerId}
+                        </p>
+                      )}
+                      <p className="mt-1 text-xs text-gray-500">
+                        This employee will report to the selected manager
+                      </p>
+                    </div>
+                  ) : (
+                    !isViewMode &&
+                    onReassign &&
+                    employee && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Reassign to Manager
+                        </label>
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value && employee) {
+                              if (
+                                window.confirm(
+                                  `Reassign ${employee.name} to ${
+                                    availableManagers.find(
+                                      (m) => m.id === e.target.value
+                                    )?.name
+                                  }?`
+                                )
+                              ) {
+                                onReassign(employee.id, e.target.value);
+                              }
+                              e.target.value = ""; // Reset selection
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>
+                            Choose a new manager...
                           </option>
-                        ))}
-                    </select>
-                    <p className="mt-1 text-xs text-gray-500">
-                      This will immediately move the employee to the selected manager's team
-                    </p>
-                  </div>
-                )}
+                          {availableManagers
+                            .filter(
+                              (manager) => manager.id !== employee.managerId
+                            )
+                            .map((manager) => (
+                              <option key={manager.id} value={manager.id}>
+                                {manager.name} - {manager.site}
+                              </option>
+                            ))}
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500">
+                          This will immediately move the employee to the
+                          selected manager's team
+                        </p>
+                      </div>
+                    )
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* Notes */}
           <div>
@@ -506,12 +636,14 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
             </label>
             {isViewMode ? (
               <div className="bg-gray-50 rounded-md p-3 text-gray-900">
-                {employee?.notes || 'No notes available'}
+                {employee?.notes || "No notes available"}
               </div>
             ) : (
               <textarea
-                value={formData.notes || ''}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                value={formData.notes || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, notes: e.target.value })
+                }
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Add any notes about this employee..."
@@ -520,9 +652,11 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           </div>
 
           {/* Status (for terminated employees) */}
-          {employee?.status === 'terminated' && isViewMode && (
+          {employee?.status === "terminated" && isViewMode && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <h3 className="text-lg font-medium text-red-900 mb-2">Employee Status</h3>
+              <h3 className="text-lg font-medium text-red-900 mb-2">
+                Employee Status
+              </h3>
               <span className="inline-block px-3 py-1 bg-red-500 text-white rounded-full text-sm font-medium">
                 TERMINATED
               </span>
@@ -542,21 +676,21 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
               </button>
             )}
           </div>
-          
+
           <div className="flex space-x-3">
             <button
               onClick={onClose}
               className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
             >
-              {isViewMode ? 'Close' : 'Cancel'}
+              {isViewMode ? "Close" : "Cancel"}
             </button>
-            
+
             {!isViewMode && (
               <button
                 onClick={handleSave}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
-                {isCreateMode ? 'Create Employee' : 'Save Changes'}
+                {isCreateMode ? "Create Employee" : "Save Changes"}
               </button>
             )}
           </div>
@@ -564,4 +698,4 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       </div>
     </div>
   );
-}; 
+};
