@@ -12,6 +12,7 @@ import {
 import { Site } from "./types";
 import { OrgChart } from "./components/OrgChart";
 import { CommissionDashboard } from "./components/CommissionDashboard";
+import { LandingPage } from "./components/LandingPage";
 import {
   useFirebaseCommissionAlerts,
   useFirebaseEmployees,
@@ -37,12 +38,12 @@ const queryClient = new QueryClient({
   },
 });
 
-type ActiveView = "org-chart" | "commission-dashboard";
+type ActiveView = "landing" | "org-chart" | "commission-dashboard";
 
 function AppContent() {
   const [selectedSite, setSelectedSite] = useState<Site>("Austin");
   const [showBulkActions, setShowBulkActions] = useState(false);
-  const [activeView, setActiveView] = useState<ActiveView>("org-chart");
+  const [activeView, setActiveView] = useState<ActiveView>("landing");
 
   // Check Firebase connection status
   const { isConnected, isConfigured } = useFirebaseConnection();
@@ -57,6 +58,40 @@ function AppContent() {
   const { hasAlerts, agentsApproachingMilestone, agentsNeedingUpdate } =
     isConnected ? firebaseAlerts : mockAlerts;
   const { employees } = isConnected ? firebaseEmployees : mockEmployees;
+
+  // Calculate stats for landing page
+  const stats = {
+    totalEmployees: employees.length,
+    totalManagers: employees.filter((emp) => emp.role === "Sales Manager")
+      .length,
+    activeAgents: employees.filter(
+      (emp) => emp.role === "Agent" && emp.status === "active"
+    ).length,
+  };
+
+  // Handle navigation from landing page
+  const handleNavigateFromLanding = (
+    view: "org-chart" | "commission-dashboard"
+  ) => {
+    setActiveView(view);
+  };
+
+  const handleSiteChangeFromLanding = (site: "Austin" | "Charlotte") => {
+    setSelectedSite(site);
+  };
+
+  // Show landing page if that's the active view
+  if (activeView === "landing") {
+    return (
+      <LandingPage
+        onNavigate={handleNavigateFromLanding}
+        selectedSite={selectedSite}
+        onSiteChange={handleSiteChangeFromLanding}
+        isConnected={isConnected}
+        stats={stats}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen scroll-smooth">
@@ -179,40 +214,50 @@ function AppContent() {
       {/* Compact Navigation Tabs */}
       <nav className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-8">
-            <button
-              onClick={() => setActiveView("org-chart")}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
-                activeView === "org-chart"
-                  ? "border-indigo-500 text-indigo-600"
-                  : "border-transparent text-slate-600 hover:text-slate-800 hover:border-gray-300"
-              }`}
-            >
-              <div className="flex items-center">
-                <UserGroupIcon className="w-4 h-4 mr-2" />
-                Organization Chart
-                {hasAlerts && (
-                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                    <ExclamationTriangleIcon className="w-3 h-3 mr-1" />
-                    {agentsApproachingMilestone.length +
-                      agentsNeedingUpdate.length}
-                  </span>
-                )}
-              </div>
-            </button>
+          <div className="flex justify-between items-center">
+            <div className="flex space-x-8">
+              <button
+                onClick={() => setActiveView("org-chart")}
+                className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                  activeView === "org-chart"
+                    ? "border-indigo-500 text-indigo-600"
+                    : "border-transparent text-slate-600 hover:text-slate-800 hover:border-gray-300"
+                }`}
+              >
+                <div className="flex items-center">
+                  <UserGroupIcon className="w-4 h-4 mr-2" />
+                  Organization Chart
+                  {hasAlerts && (
+                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      <ExclamationTriangleIcon className="w-3 h-3 mr-1" />
+                      {agentsApproachingMilestone.length +
+                        agentsNeedingUpdate.length}
+                    </span>
+                  )}
+                </div>
+              </button>
 
+              <button
+                onClick={() => setActiveView("commission-dashboard")}
+                className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                  activeView === "commission-dashboard"
+                    ? "border-indigo-500 text-indigo-600"
+                    : "border-transparent text-slate-600 hover:text-slate-800 hover:border-gray-300"
+                }`}
+              >
+                <div className="flex items-center">
+                  <ChartBarIcon className="w-4 h-4 mr-2" />
+                  Commission Dashboard
+                </div>
+              </button>
+            </div>
+
+            {/* Home Button */}
             <button
-              onClick={() => setActiveView("commission-dashboard")}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
-                activeView === "commission-dashboard"
-                  ? "border-indigo-500 text-indigo-600"
-                  : "border-transparent text-slate-600 hover:text-slate-800 hover:border-gray-300"
-              }`}
+              onClick={() => setActiveView("landing")}
+              className="py-3 px-4 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors duration-200 bg-slate-100 hover:bg-slate-200 rounded-lg"
             >
-              <div className="flex items-center">
-                <ChartBarIcon className="w-4 h-4 mr-2" />
-                Commission Dashboard
-              </div>
+              ← Home
             </button>
           </div>
         </div>

@@ -7,6 +7,7 @@ import {
   PlusIcon,
   ExclamationTriangleIcon,
   Squares2X2Icon,
+  ChevronDownIcon,
 } from "@heroicons/react/24/outline";
 import { Employee, Site, Role, CommissionTier } from "../types";
 import { EmployeeCard } from "./EmployeeCard";
@@ -14,6 +15,7 @@ import { EmployeeModal } from "./EmployeeModal";
 import { BulkActionsModal } from "./BulkActionsModal";
 import { ChangeConfirmationModal } from "./ChangeConfirmationModal";
 import { IntegrationsModal } from "./IntegrationsModal";
+import { CollapsibleHierarchy } from "./CollapsibleHierarchy";
 import {
   useFirebaseOrgStructure,
   useFirebaseDragAndDrop,
@@ -143,6 +145,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [draggedEmployee, setDraggedEmployee] = useState<Employee | null>(null);
   const [showQuickAssign, setShowQuickAssign] = useState(false);
+  const [showHierarchyGuide, setShowHierarchyGuide] = useState(false);
 
   // Data import state
   const [isImporting, setIsImporting] = useState(false);
@@ -1081,7 +1084,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({
 
   // State for view toggle
   const [viewMode, setViewMode] = useState<
-    "detailed" | "at-glance" | "bulk-manage" | "table"
+    "detailed" | "at-glance" | "bulk-manage" | "table" | "collapsible"
   >("detailed"); // Default to cards view for drag-and-drop functionality
 
   // Check integration status on mount
@@ -1262,6 +1265,17 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                 <span className="mr-2">🌳</span>
                 Hierarchy
               </button>
+              <button
+                onClick={() => setViewMode("collapsible")}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center ${
+                  viewMode === "collapsible"
+                    ? "bg-white text-blue-600 shadow-sm border border-gray-200"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                }`}
+              >
+                <span className="mr-2">📁</span>
+                Compact
+              </button>
             </div>
 
             {/* Search - Compact */}
@@ -1309,14 +1323,14 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                   <>
                     <button
                       onClick={() => setBulkModalOpen(true)}
-                      className="flex items-center px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                      className="btn-modern btn-small flex items-center"
                     >
                       <Squares2X2Icon className="w-4 h-4 mr-1.5" />
                       Bulk Actions
                     </button>
                     <button
                       onClick={handleDeselectAll}
-                      className="px-2 py-1.5 text-gray-600 hover:text-gray-800 transition-colors font-medium"
+                      className="btn-secondary btn-small"
                     >
                       Clear
                     </button>
@@ -1325,9 +1339,9 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                 {selectedEmployees.size === 0 && (
                   <button
                     onClick={handleSelectAll}
-                    className="px-3 py-1.5 text-indigo-600 hover:text-indigo-800 transition-colors font-medium border border-indigo-200 rounded-lg hover:bg-indigo-50"
+                    className="btn-outline btn-small"
                   >
-                    Select All
+                    <span>Select All</span>
                   </button>
                 )}
               </div>
@@ -1340,7 +1354,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({
             {hasUnsavedChanges && (
               <button
                 onClick={handleShowConfirmation}
-                className="flex items-center px-3 py-1.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 shadow-sm transition-all font-medium"
+                className="btn-warning btn-small flex items-center"
               >
                 <ExclamationTriangleIcon className="w-4 h-4 mr-1.5" />
                 {getPendingChangesCount()} Pending
@@ -1351,21 +1365,19 @@ export const OrgChart: React.FC<OrgChartProps> = ({
             <button
               onClick={handleImportRealData}
               disabled={isImporting}
-              className="flex items-center px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl hover:from-emerald-700 hover:to-green-700 disabled:from-emerald-300 disabled:to-green-300 disabled:cursor-not-allowed transition-all duration-300 font-bold shadow-lg border-2 border-emerald-500/30 hover:border-emerald-400 transform hover:scale-105 backdrop-blur-sm"
+              className="btn-success btn-large flex items-center"
             >
-              <CloudArrowUpIcon className="w-5 h-5 mr-2 drop-shadow-sm" />
-              <span className="drop-shadow-sm">
-                {isImporting ? "Importing..." : "Import Data"}
-              </span>
+              <CloudArrowUpIcon className="w-5 h-5 mr-2" />
+              <span>{isImporting ? "Importing..." : "Import Data"}</span>
             </button>
 
             {/* Enhanced Integrations Button */}
             <button
               onClick={() => setIntegrationsModalOpen(true)}
-              className="flex items-center px-4 py-2.5 bg-gradient-to-r from-purple-600 to-violet-600 text-white rounded-xl hover:from-purple-700 hover:to-violet-700 relative transition-all duration-300 font-bold shadow-lg border-2 border-purple-500/30 hover:border-purple-400 transform hover:scale-105 backdrop-blur-sm"
+              className="btn-modern btn-large flex items-center relative"
             >
-              <CogIcon className="w-5 h-5 mr-2 drop-shadow-sm" />
-              <span className="drop-shadow-sm">Integrations</span>
+              <CogIcon className="w-5 h-5 mr-2" />
+              <span>Integrations</span>
               {(integrationsStatus.n8nConfigured ||
                 integrationsStatus.slackConfigured) && (
                 <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full border-3 border-white shadow-lg animate-pulse"></div>
@@ -1375,169 +1387,190 @@ export const OrgChart: React.FC<OrgChartProps> = ({
             {/* Enhanced Add Employee Button */}
             <button
               onClick={() => openModal(null, "create")}
-              className="flex items-center px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl hover:from-indigo-700 hover:to-blue-700 font-bold transition-all duration-300 shadow-lg border-2 border-indigo-500/30 hover:border-indigo-400 transform hover:scale-105 backdrop-blur-sm"
+              className="btn-modern btn-large flex items-center"
             >
-              <PlusIcon className="w-5 h-5 mr-2 drop-shadow-sm" />
-              <span className="drop-shadow-sm">Add Employee</span>
+              <PlusIcon className="w-5 h-5 mr-2" />
+              <span>Add Employee</span>
             </button>
           </div>
         </div>
 
-        {/* Clear Hierarchy Guide */}
-        <div className="bg-gradient-to-r from-blue-50 via-purple-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
-          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-            <span className="text-2xl mr-3">🏢</span>
-            Organizational Hierarchy & Drag-Drop Guide
-          </h3>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Visual Hierarchy */}
-            <div>
-              <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
-                <span className="w-5 h-5 bg-blue-500 rounded-full mr-2 flex items-center justify-center">
-                  <span className="text-white text-xs">1</span>
-                </span>
-                Reporting Structure
-              </h4>
-
-              <div className="space-y-3">
-                {/* Level 1 */}
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full flex items-center justify-center">
-                    <span className="text-white text-sm">👑</span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold text-purple-700">
-                      Level 1: Site Directors
-                    </div>
-                    <div className="text-xs text-gray-600">
-                      Executive leadership - Cannot be moved
-                    </div>
-                  </div>
-                </div>
-
-                {/* Connection line */}
-                <div className="ml-4 w-0.5 h-4 bg-gray-300"></div>
-
-                {/* Level 2 */}
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-full flex items-center justify-center">
-                    <span className="text-white text-sm">👔</span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold text-blue-700">
-                      Level 2: Sales Managers
-                    </div>
-                    <div className="text-xs text-gray-600">
-                      Report to Directors - Can accept dropped employees
-                    </div>
-                  </div>
-                </div>
-
-                {/* Connection line */}
-                <div className="ml-4 w-0.5 h-4 bg-gray-300"></div>
-
-                {/* Level 3 */}
-                <div className="ml-4 space-y-2">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-6 h-6 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs">🎯</span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-green-700">
-                        Level 3a: Team Leads
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        Report to Sales Managers
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-3">
-                    <div className="w-6 h-6 bg-gradient-to-r from-gray-500 to-slate-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs">💼</span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-gray-700">
-                        Level 3b: Sales Agents
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        Report to Sales Managers
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Drag & Drop Instructions */}
-            <div>
-              <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
-                <span className="w-5 h-5 bg-green-500 rounded-full mr-2 flex items-center justify-center">
-                  <span className="text-white text-xs">2</span>
-                </span>
-                How to Use Drag & Drop
-              </h4>
-
-              <div className="space-y-3 text-sm">
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-blue-600 text-xs">🎯</span>
-                  </div>
-                  <div>
-                    <div className="font-medium text-gray-800">
-                      Manager Drop Zones
-                    </div>
-                    <div className="text-gray-600 text-xs">
-                      Blue dashed areas under each manager accept new team
-                      members
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-green-600 text-xs">✅</span>
-                  </div>
-                  <div>
-                    <div className="font-medium text-gray-800">Valid Moves</div>
-                    <div className="text-gray-600 text-xs">
-                      Team Leads & Agents → Sales Managers
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-red-600 text-xs">❌</span>
-                  </div>
-                  <div>
-                    <div className="font-medium text-gray-800">
-                      Invalid Moves
-                    </div>
-                    <div className="text-gray-600 text-xs">
-                      Directors cannot be moved, same-level transfers not
-                      allowed
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-purple-600 text-xs">⚡</span>
-                  </div>
-                  <div>
-                    <div className="font-medium text-gray-800">
-                      Visual Feedback
-                    </div>
-                    <div className="text-gray-600 text-xs">
-                      Green highlights = valid drop target, Red = invalid
-                    </div>
-                  </div>
-                </div>
-              </div>
+        {/* Collapsible Hierarchy Guide */}
+        <div className="bg-gradient-to-r from-blue-50 via-purple-50 to-indigo-50 rounded-xl border border-blue-200">
+          <div
+            className="flex items-center justify-between p-4 cursor-pointer hover:bg-blue-100/50 transition-colors rounded-t-xl"
+            onClick={() => setShowHierarchyGuide(!showHierarchyGuide)}
+          >
+            <h3 className="text-lg font-bold text-gray-900 flex items-center">
+              <span className="text-2xl mr-3">🏢</span>
+              Organizational Hierarchy & Drag-Drop Guide
+            </h3>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-600 font-medium">
+                {showHierarchyGuide ? "Hide Guide" : "Show Guide"}
+              </span>
+              <ChevronDownIcon
+                className={`w-5 h-5 text-gray-600 transition-transform duration-200 ${
+                  showHierarchyGuide ? "rotate-180" : ""
+                }`}
+              />
             </div>
           </div>
+
+          {showHierarchyGuide && (
+            <div className="p-6 pt-0">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Visual Hierarchy */}
+                <div>
+                  <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                    <span className="w-5 h-5 bg-blue-500 rounded-full mr-2 flex items-center justify-center">
+                      <span className="text-white text-xs">1</span>
+                    </span>
+                    Reporting Structure
+                  </h4>
+
+                  <div className="space-y-3">
+                    {/* Level 1 */}
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full flex items-center justify-center">
+                        <span className="text-white text-sm">👑</span>
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold text-purple-700">
+                          Level 1: Site Directors
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          Executive leadership - Cannot be moved
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Connection line */}
+                    <div className="ml-4 w-0.5 h-4 bg-gray-300"></div>
+
+                    {/* Level 2 */}
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-full flex items-center justify-center">
+                        <span className="text-white text-sm">👔</span>
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold text-blue-700">
+                          Level 2: Sales Managers
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          Report to Directors - Can accept dropped employees
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Connection line */}
+                    <div className="ml-4 w-0.5 h-4 bg-gray-300"></div>
+
+                    {/* Level 3 */}
+                    <div className="ml-4 space-y-2">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-6 h-6 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs">🎯</span>
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm font-semibold text-green-700">
+                            Level 3a: Team Leads
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            Report to Sales Managers
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                        <div className="w-6 h-6 bg-gradient-to-r from-gray-500 to-slate-500 rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs">💼</span>
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm font-semibold text-gray-700">
+                            Level 3b: Sales Agents
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            Report to Sales Managers
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Drag & Drop Instructions */}
+                <div>
+                  <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                    <span className="w-5 h-5 bg-green-500 rounded-full mr-2 flex items-center justify-center">
+                      <span className="text-white text-xs">2</span>
+                    </span>
+                    How to Use Drag & Drop
+                  </h4>
+
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-start space-x-3">
+                      <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-blue-600 text-xs">🎯</span>
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-800">
+                          Manager Drop Zones
+                        </div>
+                        <div className="text-gray-600 text-xs">
+                          Blue dashed areas under each manager accept new team
+                          members
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3">
+                      <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-green-600 text-xs">✅</span>
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-800">
+                          Valid Moves
+                        </div>
+                        <div className="text-gray-600 text-xs">
+                          Team Leads & Agents → Sales Managers
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3">
+                      <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-red-600 text-xs">❌</span>
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-800">
+                          Invalid Moves
+                        </div>
+                        <div className="text-gray-600 text-xs">
+                          Directors cannot be moved, same-level transfers not
+                          allowed
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3">
+                      <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-purple-600 text-xs">⚡</span>
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-800">
+                          Visual Feedback
+                        </div>
+                        <div className="text-gray-600 text-xs">
+                          Green highlights = valid drop target, Red = invalid
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Organization Hierarchy Overview */}
@@ -1942,6 +1975,17 @@ export const OrgChart: React.FC<OrgChartProps> = ({
               </div>
             </div>
           </div>
+        )}
+
+        {/* Collapsible Hierarchy View */}
+        {viewMode === "collapsible" && (
+          <CollapsibleHierarchy
+            employees={Object.values(filteredEmployees).flat()}
+            site={site}
+            showBulkActions={showBulkActions}
+            onEmployeeUpdate={handleEmployeeSave}
+            onEmployeeDelete={handleEmployeeDelete}
+          />
         )}
 
         {/* At-a-Glance View */}
