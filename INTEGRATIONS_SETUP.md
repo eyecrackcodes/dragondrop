@@ -113,7 +113,7 @@ Description: John Doe moved to report to Jane Smith
 
 **Test n8n:**
 ```bash
-curl -X POST https://your-n8n-instance.com/webhook/your-webhook-id \
+curl -X POST https://jkdbga.app.n8n.cloud/webhook-test/0a20b2a4-df98-4040-9b86-8dd392f6bca6 \
   -H "Content-Type: application/json" \
   -d '{
     "timestamp": "2024-01-15T10:30:00.000Z",
