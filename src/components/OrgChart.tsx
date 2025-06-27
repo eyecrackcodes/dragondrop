@@ -2057,264 +2057,191 @@ export const OrgChart: React.FC<OrgChartProps> = ({
         )}
 
         {/* At-a-Glance View */}
+        {/* Tree View - Clean & Organized Hierarchy */}
         {viewMode === "at-glance" && (
-          <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl p-8 shadow-sm border border-gray-100">
-            {/* Beautiful Header */}
-            <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                {site} Site Organizational Structure
-              </h3>
-              <p className="text-gray-600 mt-2">
-                Interactive organizational chart - click any employee to view
-                details
-              </p>
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+            {/* Clean Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-t-xl">
+              <div className="text-center">
+                <h3 className="text-2xl font-bold mb-2">🌳 {site} Organizational Tree</h3>
+                <p className="text-blue-100">Clear hierarchy view - click any employee to interact</p>
+              </div>
             </div>
 
-            {/* Clean Tree Structure */}
-            <div className="relative overflow-x-auto">
-              <div className="min-w-fit mx-auto">
-                {/* Directors Level */}
-                {filteredEmployees.directors.map((director, directorIndex) => (
-                  <div key={director.id} className="mb-16">
-                    {/* Director Node - Elegant and Clean */}
-                    <div className="flex justify-center mb-12">
+            {/* Tree Structure */}
+            <div className="p-8">
+              <div className="space-y-12">
+                {/* Site Director Level */}
+                {filteredEmployees.directors.map((director) => (
+                  <div key={director.id} className="text-center">
+                    {/* Director Card */}
+                    <div className="inline-block mb-8">
                       <div
                         onClick={() => handleView(director)}
-                        className="group cursor-pointer transform hover:scale-105 transition-all duration-300"
+                        className="cursor-pointer transform hover:scale-105 transition-all duration-200"
                       >
-                        <div className="relative bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-2xl p-6 shadow-lg hover:shadow-xl min-w-[280px] text-center border-2 border-white/20">
-                          {/* Crown Badge */}
-                          <div className="absolute -top-3 -right-3 w-8 h-8 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full flex items-center justify-center shadow-md">
-                            <span className="text-white text-sm">👑</span>
-                          </div>
-
-                          {/* Content */}
+                        <div className="bg-gradient-to-br from-purple-600 to-indigo-700 text-white rounded-xl p-6 shadow-lg min-w-[280px]">
                           <div className="flex items-center justify-center mb-3">
-                            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                              <span className="text-2xl">🏢</span>
+                            <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
+                              <span className="text-3xl">👑</span>
                             </div>
                           </div>
-                          <h4 className="font-bold text-xl mb-1">
-                            {director.name}
-                          </h4>
-                          <p className="text-purple-100 font-medium">
-                            Site Director
-                          </p>
-                          <div className="mt-3 bg-white/10 rounded-full px-3 py-1 text-sm">
-                            📍 {director.site}
-                          </div>
+                          <h4 className="text-xl font-bold mb-1">{director.name}</h4>
+                          <p className="text-purple-200 font-medium">Site Director</p>
+                          <div className="mt-3 text-sm bg-white/10 rounded-full px-4 py-1">📍 {director.site}</div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Connection Line to Managers */}
-                    {filteredEmployees.managers.filter(
-                      (m) => m.site === director.site
-                    ).length > 0 && (
-                      <div className="relative">
-                        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-6">
-                          <div className="w-0.5 h-6 bg-gradient-to-b from-purple-300 to-blue-300"></div>
-                        </div>
-                      </div>
+                    {/* Connection Line */}
+                    {filteredEmployees.managers.filter(m => m.site === director.site).length > 0 && (
+                      <div className="w-0.5 h-12 bg-gray-300 mx-auto mb-8"></div>
                     )}
 
-                    {/* Managers Level - Clean Cards */}
-                    {filteredEmployees.managers.filter(
-                      (m) => m.site === director.site
-                    ).length > 0 && (
-                      <div className="flex justify-center mb-10">
-                        <div className="flex flex-wrap justify-center gap-8">
-                          {filteredEmployees.managers
-                            .filter((m) => m.site === director.site)
-                            .map((manager) => {
-                              const teamMembers = [
-                                ...filteredEmployees.teamLeads,
-                                ...filteredEmployees.agents,
-                              ].filter((emp) => emp.managerId === manager.id);
+                    {/* Managers Level */}
+                    <div className="flex flex-wrap justify-center gap-16">
+                      {filteredEmployees.managers
+                        .filter(m => m.site === director.site)
+                        .map((manager) => {
+                          const teamMembers = [...filteredEmployees.teamLeads, ...filteredEmployees.agents]
+                            .filter(emp => emp.managerId === manager.id);
 
-                              return (
-                                <div
-                                  key={manager.id}
-                                  className="flex flex-col items-center"
-                                >
-                                  {/* Vertical Line to Manager */}
-                                  <div className="w-0.5 h-8 bg-gradient-to-b from-blue-300 to-cyan-300 mb-4"></div>
-
-                                  {/* Manager Card - Clean Design */}
-                                  <div
-                                    onClick={() => handleView(manager)}
-                                    className="group cursor-pointer transform hover:scale-105 transition-all duration-300 mb-6"
-                                  >
-                                    <div className="bg-gradient-to-br from-blue-500 to-cyan-500 text-white rounded-xl p-5 shadow-md hover:shadow-lg w-[240px] text-center border border-white/20">
-                                      {/* Badge */}
-                                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full flex items-center justify-center">
-                                        <span className="text-white text-xs">
-                                          👔
-                                        </span>
-                                      </div>
-
-                                      {/* Content */}
-                                      <div className="flex items-center justify-center mb-3">
-                                        <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                                          <span className="text-xl">👥</span>
-                                        </div>
-                                      </div>
-                                      <h4 className="font-semibold text-lg mb-1">
-                                        {manager.name}
-                                      </h4>
-                                      <p className="text-blue-100 text-sm">
-                                        Sales Manager
-                                      </p>
-                                      <div className="mt-2 bg-white/10 rounded-full px-3 py-1 text-xs">
-                                        👥 {teamMembers.length} Reports
-                                      </div>
+                          return (
+                            <div key={manager.id} className="flex flex-col items-center">
+                              {/* Manager Card */}
+                              <div
+                                onClick={() => handleView(manager)}
+                                className="cursor-pointer transform hover:scale-105 transition-all duration-200 mb-6"
+                              >
+                                <div className="bg-gradient-to-br from-blue-500 to-cyan-600 text-white rounded-lg p-5 shadow-md w-[220px] text-center">
+                                  <div className="flex items-center justify-center mb-3">
+                                    <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                                      <span className="text-2xl">👔</span>
                                     </div>
                                   </div>
-
-                                  {/* Team Members - Minimalist Cards */}
-                                  {teamMembers.length > 0 ? (
-                                    <div className="flex flex-col items-center">
-                                      {/* Connection Line */}
-                                      <div className="w-0.5 h-6 bg-gradient-to-b from-cyan-300 to-green-300"></div>
-
-                                      {/* Team Grid */}
-                                      <div className="grid grid-cols-2 gap-3 mt-2">
-                                        {teamMembers
-                                          .sort((a, b) => {
-                                            if (
-                                              a.role === "Team Lead" &&
-                                              b.role === "Agent"
-                                            )
-                                              return -1;
-                                            if (
-                                              a.role === "Agent" &&
-                                              b.role === "Team Lead"
-                                            )
-                                              return 1;
-                                            return a.name.localeCompare(b.name);
-                                          })
-                                          .map((employee) => (
-                                            <div
-                                              key={employee.id}
-                                              onClick={() =>
-                                                handleView(employee)
-                                              }
-                                              className="group cursor-pointer transform hover:scale-105 transition-all duration-300"
-                                            >
-                                              <div
-                                                className={`rounded-lg p-3 shadow-sm hover:shadow-md text-center border border-white/30 ${
-                                                  employee.role === "Team Lead"
-                                                    ? "bg-gradient-to-br from-green-400 to-emerald-500 text-white"
-                                                    : "bg-gradient-to-br from-gray-400 to-slate-500 text-white"
-                                                } min-w-[110px]`}
-                                              >
-                                                {/* Role Icon */}
-                                                <div className="text-lg mb-1">
-                                                  {employee.role === "Team Lead"
-                                                    ? "🎯"
-                                                    : "💼"}
-                                                </div>
-                                                {/* Name */}
-                                                <div
-                                                  className="font-medium text-sm truncate"
-                                                  title={employee.name}
-                                                >
-                                                  {employee.name.split(" ")[0]}
-                                                </div>
-                                                {/* Role */}
-                                                <div className="text-xs opacity-90 mt-1">
-                                                  {employee.role === "Team Lead"
-                                                    ? "Lead"
-                                                    : "Agent"}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          ))}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div
-                                      className={`transition-all ${
-                                        isDragging
-                                          ? "p-6 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg"
-                                          : "p-3 bg-gray-50"
-                                      }`}
-                                    >
-                                      <div className="text-center">
-                                        {isDragging ? (
-                                          <div className="text-blue-600">
-                                            <div className="w-16 h-16 bg-blue-100 rounded-full mx-auto mb-3 flex items-center justify-center">
-                                              <span className="text-2xl">
-                                                🎯
-                                              </span>
-                                            </div>
-                                            <p className="font-medium">
-                                              Drop employee here
-                                            </p>
-                                            <p className="text-xs mt-1">
-                                              Build {manager.name}'s team
-                                            </p>
-                                          </div>
-                                        ) : (
-                                          <div className="text-gray-400 text-sm">
-                                            <div className="w-12 h-12 bg-gray-200 rounded-full mx-auto mb-2 flex items-center justify-center">
-                                              <span className="text-lg">
-                                                👥
-                                              </span>
-                                            </div>
-                                            <p>No team members</p>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
+                                  <h5 className="text-lg font-semibold mb-1">{manager.name}</h5>
+                                  <p className="text-blue-100 text-sm">Sales Manager</p>
+                                  <div className="mt-2 text-xs bg-white/10 rounded-full px-3 py-1">
+                                    👥 {teamMembers.length} Team Members
+                                  </div>
                                 </div>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    )}
+                              </div>
+
+                              {/* Team Members */}
+                              {teamMembers.length > 0 ? (
+                                <>
+                                  {/* Connection Line */}
+                                  <div className="w-0.5 h-8 bg-gray-300 mb-4"></div>
+                                  
+                                  {/* Team Grid */}
+                                  <div className="grid grid-cols-3 gap-3 max-w-[300px]">
+                                    {teamMembers
+                                      .sort((a, b) => {
+                                        // Team Leads first, then Agents
+                                        if (a.role === "Team Lead" && b.role === "Agent") return -1;
+                                        if (a.role === "Agent" && b.role === "Team Lead") return 1;
+                                        return a.name.localeCompare(b.name);
+                                      })
+                                      .map((employee) => (
+                                        <div
+                                          key={employee.id}
+                                          onClick={() => handleView(employee)}
+                                          className="cursor-pointer transform hover:scale-105 transition-all duration-200"
+                                        >
+                                          <div className={`rounded-lg p-3 text-center shadow-sm border-2 ${
+                                            employee.role === "Team Lead"
+                                              ? "bg-green-500 text-white border-green-400"
+                                              : "bg-gray-500 text-white border-gray-400"
+                                          }`}>
+                                            <div className="text-base mb-1">
+                                              {employee.role === "Team Lead" ? "🎯" : "💼"}
+                                            </div>
+                                            <div className="text-xs font-medium truncate" title={employee.name}>
+                                              {employee.name.split(" ")[0]}
+                                            </div>
+                                            <div className="text-xs opacity-80 mt-1">
+                                              {employee.role === "Team Lead" ? "Lead" : "Agent"}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="mt-4 p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                                  <div className="text-center text-gray-500">
+                                    <div className="text-2xl mb-2">👥</div>
+                                    <p className="text-sm">No team assigned</p>
+                                    {isDragging && (
+                                      <p className="text-xs text-blue-600 mt-1">Drop here to assign</p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
                   </div>
                 ))}
 
-                {/* Unassigned Employees - Clean Warning */}
+                {/* Unassigned Employees Warning */}
                 {unassignedEmployees.length > 0 && (
-                  <div className="mt-12 p-6 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl border border-yellow-200">
-                    <div className="text-center mb-4">
-                      <div className="inline-flex items-center px-4 py-2 bg-yellow-100 rounded-full">
-                        <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600 mr-2" />
-                        <span className="font-medium text-yellow-800">
-                          Unassigned Employees
-                        </span>
+                  <div className="mt-12 p-6 bg-yellow-50 rounded-xl border-2 border-yellow-200">
+                    <div className="text-center">
+                      <div className="flex items-center justify-center mb-4">
+                        <ExclamationTriangleIcon className="w-6 h-6 text-yellow-600 mr-2" />
+                        <span className="text-lg font-semibold text-yellow-800">Unassigned Employees</span>
                       </div>
-                    </div>
-                    <div className="flex flex-wrap justify-center gap-3">
-                      {unassignedEmployees.map((employee) => (
-                        <div
-                          key={employee.id}
-                          onClick={() => handleView(employee)}
-                          className="bg-white rounded-lg p-3 shadow-sm hover:shadow-md cursor-pointer transform hover:scale-105 transition-all duration-300 border border-yellow-200"
-                        >
-                          <div className="text-center">
-                            <div className="text-lg mb-1">
-                              {employee.role === "Team Lead"
-                                ? "🎯"
-                                : employee.role === "Sales Manager"
-                                ? "👔"
-                                : "💼"}
-                            </div>
-                            <div className="font-medium text-sm text-gray-800">
-                              {employee.name}
-                            </div>
-                            <div className="text-xs text-gray-600">
-                              {employee.role}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                        {unassignedEmployees.map((employee) => (
+                          <div
+                            key={employee.id}
+                            onClick={() => handleView(employee)}
+                            className="bg-white rounded-lg p-3 border border-yellow-300 cursor-pointer hover:shadow-md transition-all"
+                          >
+                            <div className="text-center">
+                              <div className="text-lg mb-1">
+                                {employee.role === "Team Lead" ? "🎯" : "💼"}
+                              </div>
+                              <div className="text-sm font-medium text-gray-800 truncate" title={employee.name}>
+                                {employee.name}
+                              </div>
+                              <div className="text-xs text-gray-600 mt-1">{employee.role}</div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Tree Footer */}
+            <div className="bg-gray-50 px-6 py-4 rounded-b-xl border-t border-gray-200">
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <div className="flex items-center space-x-6">
+                  <span className="flex items-center">
+                    <span className="w-3 h-3 bg-purple-600 rounded-full mr-2"></span>
+                    Directors ({filteredEmployees.directors.length})
+                  </span>
+                  <span className="flex items-center">
+                    <span className="w-3 h-3 bg-blue-500 rounded-full mr-2"></span>
+                    Managers ({filteredEmployees.managers.length})
+                  </span>
+                  <span className="flex items-center">
+                    <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                    Team Leads ({filteredEmployees.teamLeads.length})
+                  </span>
+                  <span className="flex items-center">
+                    <span className="w-3 h-3 bg-gray-500 rounded-full mr-2"></span>
+                    Agents ({filteredEmployees.agents.length})
+                  </span>
+                </div>
+                <div className="font-medium">
+                  Total: {Object.values(filteredEmployees).flat().length} employees
+                </div>
               </div>
             </div>
           </div>
