@@ -1,6 +1,6 @@
 import { Employee } from "../types";
 import { format, isSameDay, addYears, startOfDay, endOfDay } from "date-fns";
-import { sendSlackMessage } from "./externalIntegrations";
+import { externalIntegrationsService } from "./externalIntegrations";
 
 export interface CelebrationAlert {
   employee: Employee;
@@ -189,12 +189,48 @@ export class CelebrationsService {
 
     // Send to Slack
     try {
-      await sendSlackMessage(
-        message.trim(),
-        config.channelId,
-        ":birthday:",
-        "Celebrations Bot"
+      const slackMessage = {
+        text: message.trim(),
+        channel: config.channelId,
+        blocks: [
+          {
+            type: "header",
+            text: {
+              type: "plain_text",
+              text: `${
+                config.advanceNoticeDays === 0 ? "🎉 Today's" : "📅 Upcoming"
+              } Celebrations`,
+            },
+          },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: message.trim(),
+            },
+          },
+          {
+            type: "context",
+            elements: [
+              {
+                type: "mrkdwn",
+                text: `Sent from Dragon Drop Celebrations Bot | ${format(
+                  new Date(),
+                  "MMM dd, yyyy"
+                )}`,
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = await externalIntegrationsService.sendToSlack(
+        slackMessage
       );
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to send to Slack");
+      }
 
       return {
         success: true,

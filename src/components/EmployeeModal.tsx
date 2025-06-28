@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Employee, Role, Site, CommissionTier } from "../types";
+import { Employee, Site, Role, Status, CommissionTier } from "../types";
 import {
   XMarkIcon,
   UserIcon,

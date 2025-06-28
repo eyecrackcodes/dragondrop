@@ -22,12 +22,20 @@ module.exports = async (req, res) => {
   // Get celebrations channel from environment or request
   const celebrationsChannelId =
     process.env.CELEBRATIONS_CHANNEL_ID || req.query.channelId;
+  const slackWebhookUrl = process.env.SLACK_WEBHOOK_URL;
 
   if (!celebrationsChannelId) {
     return res.status(400).json({
       error: "No celebrations channel configured",
       message:
         "Set CELEBRATIONS_CHANNEL_ID environment variable or pass channelId query parameter",
+    });
+  }
+
+  if (!slackWebhookUrl) {
+    return res.status(400).json({
+      error: "No Slack webhook URL configured",
+      message: "Set SLACK_WEBHOOK_URL environment variable",
     });
   }
 
@@ -64,26 +72,27 @@ module.exports = async (req, res) => {
     }
 
     if (message) {
-      // Send to Slack via our webhook proxy
-      const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000";
+      // Send to Slack directly
+      const slackPayload = {
+        text: message.trim(),
+        channel: celebrationsChannelId,
+        username: "Celebrations Bot",
+        icon_emoji: ":birthday:",
+      };
 
-      const slackResponse = await fetch(`${baseUrl}/api/slack-webhook`, {
+      const slackResponse = await fetch(slackWebhookUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          text: message.trim(),
-          channel: celebrationsChannelId,
-          icon_emoji: ":birthday:",
-          username: "Celebrations Bot",
-        }),
+        body: JSON.stringify(slackPayload),
       });
 
       if (!slackResponse.ok) {
-        throw new Error(`Slack webhook failed: ${slackResponse.statusText}`);
+        const errorText = await slackResponse.text();
+        throw new Error(
+          `Slack webhook failed: ${slackResponse.status} - ${errorText}`
+        );
       }
     }
 
