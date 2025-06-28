@@ -1,9 +1,5 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-
-// Import node-fetch at the top level
-const fetch = require("node-fetch");
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+// Simple Slack webhook proxy for Vercel
+module.exports = async (req, res) => {
   // Enable CORS
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -16,13 +12,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
   );
 
-  // Handle preflight request
+  // Handle preflight
   if (req.method === "OPTIONS") {
     res.status(200).end();
     return;
   }
 
-  // Only allow POST requests
+  // Only allow POST
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -30,27 +26,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { webhookUrl, message } = req.body;
 
-    // Log incoming request for debugging
-    console.log("Incoming webhook request:", {
-      hasWebhookUrl: !!webhookUrl,
-      hasMessage: !!message,
-      messageType: typeof message,
-    });
-
+    // Validate inputs
     if (!webhookUrl || !message) {
       return res.status(400).json({
         error: "Missing required fields: webhookUrl and message",
       });
     }
 
-    // Validate webhook URL is a Slack webhook
+    // Validate webhook URL
     if (!webhookUrl.startsWith("https://hooks.slack.com/services/")) {
       return res.status(400).json({
         error: "Invalid Slack webhook URL",
       });
     }
 
-    // Forward the request to Slack
+    // Use node-fetch
+    const fetch = require("node-fetch");
+
+    // Send to Slack
     const slackResponse = await fetch(webhookUrl, {
       method: "POST",
       headers: {
@@ -59,60 +52,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify(message),
     });
 
-    // Check if Slack accepted the webhook
-    if (!slackResponse.ok) {
-      const errorText = await slackResponse.text();
-      console.error("Slack webhook error:", {
-        status: slackResponse.status,
-        errorText,
-        webhookUrl: webhookUrl.substring(0, 50) + "...", // Log partial URL for security
-      });
+    const responseText = await slackResponse.text();
 
-      // Common Slack errors
+    if (!slackResponse.ok) {
+      console.error("Slack error:", slackResponse.status, responseText);
+
       if (slackResponse.status === 404) {
         return res.status(404).json({
           error: "Webhook not found. Please check your webhook URL.",
         });
       } else if (slackResponse.status === 400) {
         return res.status(400).json({
-          error: "Invalid payload. Please check your message format.",
+          error: "Invalid payload format.",
         });
       } else if (slackResponse.status === 403 || slackResponse.status === 401) {
         return res.status(403).json({
-          error:
-            "Webhook is invalid, expired, or has been disabled. Please create a new webhook in Slack.",
+          error: "Webhook is invalid or has been disabled.",
         });
       }
 
       return res.status(slackResponse.status).json({
-        error: `Slack returned error: ${errorText}`,
+        error: `Slack error: ${responseText}`,
       });
     }
 
-    // Success! Slack webhooks typically return 'ok' as plain text
-    const responseText = await slackResponse.text();
-    console.log("Slack webhook success:", responseText);
-
+    // Success
     return res.status(200).json({
       success: true,
       response: responseText,
     });
   } catch (error) {
     console.error("Webhook proxy error:", error);
-
-    // Provide more detailed error information for debugging
-    if (error instanceof Error) {
-      return res.status(500).json({
-        error: "Internal server error",
-        details: error.message,
-        name: error.name,
-        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
-      });
-    }
-
     return res.status(500).json({
       error: "Internal server error",
-      details: "An unexpected error occurred",
+      details: error.message,
     });
   }
-}
+};
