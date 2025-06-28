@@ -25,7 +25,7 @@
     "date-fns": "^4.1.0",
     "firebase": "^11.9.1",
     "lucide-react": "^0.523.0",
-    "node-fetch": "^3.3.2",
+    "node-fetch": "^2.7.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-dropzone": "^14.3.8",
