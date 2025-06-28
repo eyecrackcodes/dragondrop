@@ -155,8 +155,11 @@ class ExternalIntegrationsService {
           const errorData = await response
             .json()
             .catch(() => ({ error: "Unknown error" }));
+          console.error("Slack proxy error response:", errorData);
           throw new Error(
-            errorData.error || `Proxy failed with status: ${response.status}`
+            errorData.error ||
+              errorData.details ||
+              `Proxy failed with status: ${response.status}`
           );
         }
 
