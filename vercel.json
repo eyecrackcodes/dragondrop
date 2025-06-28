@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "api/slack-webhook.ts": {
+      "maxDuration": 10
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
+  ]
+}

@@ -1,7 +1,13 @@
 interface WebhookPayload {
   timestamp: string;
   site: string;
-  changeType: 'employee_move' | 'employee_promote' | 'employee_transfer' | 'employee_terminate' | 'employee_create' | 'bulk_action';
+  changeType:
+    | "employee_move"
+    | "employee_promote"
+    | "employee_transfer"
+    | "employee_terminate"
+    | "employee_create"
+    | "bulk_action";
   employee: {
     id: string;
     name: string;
@@ -17,8 +23,8 @@ interface WebhookPayload {
   };
   metadata: {
     userId?: string;
-    source: 'dragon_drop_app';
-    version: '1.0.0';
+    source: "dragon_drop_app";
+    version: "1.0.0";
   };
 }
 
@@ -51,46 +57,49 @@ class ExternalIntegrationsService {
     // These can be set via environment variables or config
     this.n8nWebhookUrl = process.env.REACT_APP_N8N_WEBHOOK_URL || null;
     this.slackWebhookUrl = process.env.REACT_APP_SLACK_WEBHOOK_URL || null;
-    this.apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api';
+    this.apiBaseUrl =
+      process.env.REACT_APP_API_BASE_URL || "http://localhost:3001/api";
   }
 
   // Configure webhook URLs at runtime
   setN8nWebhook(url: string): void {
     this.n8nWebhookUrl = url;
-    localStorage.setItem('dragon_drop_n8n_webhook', url);
+    localStorage.setItem("dragon_drop_n8n_webhook", url);
   }
 
   setSlackWebhook(url: string): void {
     this.slackWebhookUrl = url;
-    localStorage.setItem('dragon_drop_slack_webhook', url);
+    localStorage.setItem("dragon_drop_slack_webhook", url);
   }
 
   // Load URLs from localStorage if not in env
   private loadStoredUrls(): void {
     if (!this.n8nWebhookUrl) {
-      this.n8nWebhookUrl = localStorage.getItem('dragon_drop_n8n_webhook');
+      this.n8nWebhookUrl = localStorage.getItem("dragon_drop_n8n_webhook");
     }
     if (!this.slackWebhookUrl) {
-      this.slackWebhookUrl = localStorage.getItem('dragon_drop_slack_webhook');
+      this.slackWebhookUrl = localStorage.getItem("dragon_drop_slack_webhook");
     }
   }
 
   // Send data to n8n workflow
-  async sendToN8n(payload: WebhookPayload): Promise<{ success: boolean; error?: string }> {
+  async sendToN8n(
+    payload: WebhookPayload
+  ): Promise<{ success: boolean; error?: string }> {
     this.loadStoredUrls();
-    
+
     if (!this.n8nWebhookUrl) {
-      console.warn('🔗 n8n webhook URL not configured');
-      return { success: false, error: 'n8n webhook URL not configured' };
+      console.warn("🔗 n8n webhook URL not configured");
+      return { success: false, error: "n8n webhook URL not configured" };
     }
 
     try {
-      console.log('🚀 Sending to n8n:', payload);
-      
+      console.log("🚀 Sending to n8n:", payload);
+
       const response = await fetch(this.n8nWebhookUrl, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
       });
@@ -100,44 +109,85 @@ class ExternalIntegrationsService {
       }
 
       const result = await response.json().catch(() => ({ success: true }));
-      console.log('✅ n8n response:', result);
-      
+      console.log("✅ n8n response:", result);
+
       return { success: true };
     } catch (error) {
-      console.error('❌ n8n webhook error:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      console.error("❌ n8n webhook error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
     }
   }
 
   // Send message to Slack
-  async sendToSlack(message: SlackMessage): Promise<{ success: boolean; error?: string }> {
+  async sendToSlack(
+    message: SlackMessage
+  ): Promise<{ success: boolean; error?: string }> {
     this.loadStoredUrls();
-    
+
     if (!this.slackWebhookUrl) {
-      console.warn('💬 Slack webhook URL not configured');
-      return { success: false, error: 'Slack webhook URL not configured' };
+      console.warn("💬 Slack webhook URL not configured");
+      return { success: false, error: "Slack webhook URL not configured" };
     }
 
     try {
-      console.log('💬 Sending to Slack:', message);
-      
-      const response = await fetch(this.slackWebhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(message),
-      });
+      console.log("💬 Sending to Slack:", message);
 
-      if (!response.ok) {
-        throw new Error(`Slack webhook failed with status: ${response.status}`);
+      // Check if we're in production (Vercel) or development
+      const isProduction = window.location.hostname !== "localhost";
+
+      if (isProduction) {
+        // Use the proxy endpoint in production to avoid CORS
+        const response = await fetch("/api/slack-webhook", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            webhookUrl: this.slackWebhookUrl,
+            message: message,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response
+            .json()
+            .catch(() => ({ error: "Unknown error" }));
+          throw new Error(
+            errorData.error || `Proxy failed with status: ${response.status}`
+          );
+        }
+
+        const result = await response.json();
+        console.log("✅ Slack message sent successfully via proxy");
+        return { success: true };
+      } else {
+        // In development, try direct call (may fail due to CORS)
+        const response = await fetch(this.slackWebhookUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(message),
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `Slack webhook failed with status: ${response.status}`
+          );
+        }
+
+        console.log("✅ Slack message sent successfully");
+        return { success: true };
       }
-
-      console.log('✅ Slack message sent successfully');
-      return { success: true };
     } catch (error) {
-      console.error('❌ Slack webhook error:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      console.error("❌ Slack webhook error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
     }
   }
 
@@ -145,7 +195,7 @@ class ExternalIntegrationsService {
   createSlackMessage(payload: WebhookPayload): SlackMessage {
     const emoji = this.getChangeEmoji(payload.changeType);
     const color = this.getChangeColor(payload.changeType);
-    
+
     return {
       text: `${emoji} Organizational Change: ${payload.change.description}`,
       blocks: [
@@ -153,57 +203,64 @@ class ExternalIntegrationsService {
           type: "header",
           text: {
             type: "plain_text",
-            text: `${emoji} Dragon Drop - Organizational Update`
-          }
+            text: `${emoji} Dragon Drop - Organizational Update`,
+          },
         },
         {
           type: "section",
           fields: [
             {
               type: "mrkdwn",
-              text: `*Employee:* ${payload.employee.name}`
+              text: `*Employee:* ${payload.employee.name}`,
             },
             {
               type: "mrkdwn",
-              text: `*Role:* ${payload.employee.role}`
+              text: `*Role:* ${payload.employee.role}`,
             },
             {
               type: "mrkdwn",
-              text: `*Site:* ${payload.employee.site}`
+              text: `*Site:* ${payload.employee.site}`,
             },
             {
               type: "mrkdwn",
-              text: `*Change Type:* ${this.formatChangeType(payload.changeType)}`
-            }
-          ]
+              text: `*Change Type:* ${this.formatChangeType(
+                payload.changeType
+              )}`,
+            },
+          ],
         },
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `*Description:* ${payload.change.description}`
-          }
+            text: `*Description:* ${payload.change.description}`,
+          },
         },
         {
           type: "context",
           elements: [
             {
               type: "mrkdwn",
-              text: `📅 ${new Date(payload.timestamp).toLocaleString()} | 🏢 ${payload.site} Site | 🤖 Dragon Drop App`
-            }
-          ]
-        }
-      ]
+              text: `📅 ${new Date(payload.timestamp).toLocaleString()} | 🏢 ${
+                payload.site
+              } Site | 🤖 Dragon Drop App`,
+            },
+          ],
+        },
+      ],
     };
   }
 
   // Send organizational change to both n8n and Slack
   async notifyChange(
-    changeType: WebhookPayload['changeType'],
-    employee: WebhookPayload['employee'],
-    change: WebhookPayload['change'],
+    changeType: WebhookPayload["changeType"],
+    employee: WebhookPayload["employee"],
+    change: WebhookPayload["change"],
     site: string,
-    options: { sendToN8n?: boolean; sendToSlack?: boolean } = { sendToN8n: true, sendToSlack: true }
+    options: { sendToN8n?: boolean; sendToSlack?: boolean } = {
+      sendToN8n: true,
+      sendToSlack: true,
+    }
   ): Promise<{ n8nResult?: any; slackResult?: any; errors: string[] }> {
     const payload: WebhookPayload = {
       timestamp: new Date().toISOString(),
@@ -212,12 +269,14 @@ class ExternalIntegrationsService {
       employee,
       change,
       metadata: {
-        source: 'dragon_drop_app',
-        version: '1.0.0',
+        source: "dragon_drop_app",
+        version: "1.0.0",
       },
     };
 
-    const results: { n8nResult?: any; slackResult?: any; errors: string[] } = { errors: [] };
+    const results: { n8nResult?: any; slackResult?: any; errors: string[] } = {
+      errors: [],
+    };
 
     // Send to n8n
     if (options.sendToN8n) {
@@ -240,39 +299,57 @@ class ExternalIntegrationsService {
   }
 
   // Helper methods
-  private getChangeEmoji(changeType: WebhookPayload['changeType']): string {
+  private getChangeEmoji(changeType: WebhookPayload["changeType"]): string {
     switch (changeType) {
-      case 'employee_move': return '🔄';
-      case 'employee_promote': return '⬆️';
-      case 'employee_transfer': return '🏢';
-      case 'employee_terminate': return '❌';
-      case 'employee_create': return '✅';
-      case 'bulk_action': return '📦';
-      default: return '📝';
+      case "employee_move":
+        return "🔄";
+      case "employee_promote":
+        return "⬆️";
+      case "employee_transfer":
+        return "🏢";
+      case "employee_terminate":
+        return "❌";
+      case "employee_create":
+        return "✅";
+      case "bulk_action":
+        return "📦";
+      default:
+        return "📝";
     }
   }
 
-  private getChangeColor(changeType: WebhookPayload['changeType']): string {
+  private getChangeColor(changeType: WebhookPayload["changeType"]): string {
     switch (changeType) {
-      case 'employee_move': return '#3B82F6';      // Blue
-      case 'employee_promote': return '#10B981';   // Green
-      case 'employee_transfer': return '#8B5CF6';  // Purple
-      case 'employee_terminate': return '#EF4444'; // Red
-      case 'employee_create': return '#059669';    // Emerald
-      case 'bulk_action': return '#F59E0B';        // Amber
-      default: return '#6B7280';                   // Gray
+      case "employee_move":
+        return "#3B82F6"; // Blue
+      case "employee_promote":
+        return "#10B981"; // Green
+      case "employee_transfer":
+        return "#8B5CF6"; // Purple
+      case "employee_terminate":
+        return "#EF4444"; // Red
+      case "employee_create":
+        return "#059669"; // Emerald
+      case "bulk_action":
+        return "#F59E0B"; // Amber
+      default:
+        return "#6B7280"; // Gray
     }
   }
 
-  private formatChangeType(changeType: WebhookPayload['changeType']): string {
+  private formatChangeType(changeType: WebhookPayload["changeType"]): string {
     return changeType
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
   }
 
   // Test connectivity
-  async testConnections(): Promise<{ n8n: boolean; slack: boolean; errors: string[] }> {
+  async testConnections(): Promise<{
+    n8n: boolean;
+    slack: boolean;
+    errors: string[];
+  }> {
     const errors: string[] = [];
     let n8nStatus = false;
     let slackStatus = false;
@@ -281,20 +358,20 @@ class ExternalIntegrationsService {
     if (this.n8nWebhookUrl) {
       const testPayload: WebhookPayload = {
         timestamp: new Date().toISOString(),
-        site: 'Test',
-        changeType: 'employee_create',
+        site: "Test",
+        changeType: "employee_create",
         employee: {
-          id: 'test-001',
-          name: 'Test Employee',
-          role: 'Agent',
-          site: 'Test',
+          id: "test-001",
+          name: "Test Employee",
+          role: "Agent",
+          site: "Test",
         },
         change: {
-          description: 'Connection test from Dragon Drop',
+          description: "Connection test from Dragon Drop",
         },
         metadata: {
-          source: 'dragon_drop_app',
-          version: '1.0.0',
+          source: "dragon_drop_app",
+          version: "1.0.0",
         },
       };
 
@@ -304,22 +381,22 @@ class ExternalIntegrationsService {
         errors.push(`n8n test failed: ${result.error}`);
       }
     } else {
-      errors.push('n8n webhook URL not configured');
+      errors.push("n8n webhook URL not configured");
     }
 
     // Test Slack
     if (this.slackWebhookUrl) {
       const testMessage: SlackMessage = {
-        text: '🧪 Dragon Drop Connection Test',
+        text: "🧪 Dragon Drop Connection Test",
         blocks: [
           {
             type: "section",
             text: {
               type: "mrkdwn",
-              text: "🧪 *Dragon Drop Connection Test*\n\nThis is a test message to verify the Slack integration is working correctly."
-            }
-          }
-        ]
+              text: "🧪 *Dragon Drop Connection Test*\n\nThis is a test message to verify the Slack integration is working correctly.",
+            },
+          },
+        ],
       };
 
       const result = await this.sendToSlack(testMessage);
@@ -328,7 +405,7 @@ class ExternalIntegrationsService {
         errors.push(`Slack test failed: ${result.error}`);
       }
     } else {
-      errors.push('Slack webhook URL not configured');
+      errors.push("Slack webhook URL not configured");
     }
 
     return { n8n: n8nStatus, slack: slackStatus, errors };
@@ -346,4 +423,4 @@ class ExternalIntegrationsService {
 
 // Export singleton instance
 export const externalIntegrationsService = new ExternalIntegrationsService();
-export type { WebhookPayload, SlackMessage }; 
+export type { WebhookPayload, SlackMessage };
