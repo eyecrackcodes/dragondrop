@@ -1,5 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
+// Import node-fetch at the top level
+const fetch = require("node-fetch");
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS
   res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -47,17 +50,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Use dynamic import for node-fetch to ensure compatibility
-    let fetchFunction: typeof fetch;
-    if (typeof fetch === "undefined") {
-      const nodeFetch = await import("node-fetch");
-      fetchFunction = nodeFetch.default as any;
-    } else {
-      fetchFunction = fetch;
-    }
-
     // Forward the request to Slack
-    const slackResponse = await fetchFunction(webhookUrl, {
+    const slackResponse = await fetch(webhookUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

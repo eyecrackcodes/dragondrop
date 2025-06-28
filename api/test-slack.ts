@@ -1,5 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
+// Import node-fetch at the top level
+const fetch = require("node-fetch");
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS
   res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -18,7 +21,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       status: "ok",
       message: "Slack webhook proxy is running",
       nodeVersion: process.version,
-      hasNativeFetch: typeof fetch !== "undefined",
       timestamp: new Date().toISOString(),
     });
   }
@@ -34,17 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Test if we can make a simple fetch request
       const testUrl = "https://httpbin.org/status/200";
 
-      let fetchFunction: typeof fetch;
-      if (typeof fetch === "undefined") {
-        console.log("Native fetch not available, using node-fetch");
-        const nodeFetch = await import("node-fetch");
-        fetchFunction = nodeFetch.default as any;
-      } else {
-        console.log("Using native fetch");
-        fetchFunction = fetch;
-      }
-
-      const testResponse = await fetchFunction(testUrl);
+      const testResponse = await fetch(testUrl);
       console.log("Test fetch response status:", testResponse.status);
 
       return res.status(200).json({
@@ -58,7 +50,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         },
         environment: {
           nodeVersion: process.version,
-          hasNativeFetch: typeof fetch !== "undefined",
         },
       });
     } catch (error) {
