@@ -364,7 +364,7 @@ export const CelebrationsDashboard: React.FC<CelebrationsDashboardProps> = ({
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {format(alert.date, "MMMM d, yyyy")}
+                    {format(alert.date, "MMMM d")}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span

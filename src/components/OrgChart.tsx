@@ -38,6 +38,7 @@ import {
 } from "../services/firebaseImporter";
 import { calculateAgentCommission } from "../utils/commissionCalculator";
 import { externalIntegrationsService } from "../services/externalIntegrations";
+import { format } from "date-fns";
 
 // Types
 interface OrgChartProps {
@@ -712,10 +713,10 @@ export const OrgChart: React.FC<OrgChartProps> = ({
         // Check birthDate changes (handle undefined values)
         if (originalEmployee.birthDate !== updatedEmployee.birthDate) {
           const originalBirthDate = originalEmployee.birthDate
-            ? new Date(originalEmployee.birthDate).toLocaleDateString()
+            ? format(new Date(originalEmployee.birthDate), "MMMM d")
             : "Not set";
           const updatedBirthDate = updatedEmployee.birthDate
-            ? new Date(updatedEmployee.birthDate).toLocaleDateString()
+            ? format(new Date(updatedEmployee.birthDate), "MMMM d")
             : "Not set";
           changes.push(
             `Birth Date: "${originalBirthDate}" → "${updatedBirthDate}"`

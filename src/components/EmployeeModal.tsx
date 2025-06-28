@@ -484,7 +484,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                   <CakeIcon className="w-5 h-5 text-gray-400 mr-2" />
                   <span className="text-gray-900">
                     {employee?.birthDate
-                      ? format(new Date(employee.birthDate), "MMM dd, yyyy")
+                      ? format(new Date(employee.birthDate), "MMMM d")
                       : "Not specified"}
                   </span>
                 </div>
@@ -519,7 +519,8 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
               )}
               {!isViewMode && (
                 <p className="text-xs text-gray-500 mt-1">
-                  Optional: Used for birthday celebrations
+                  Optional: Used for birthday celebrations (only month and day
+                  are displayed)
                 </p>
               )}
             </div>
