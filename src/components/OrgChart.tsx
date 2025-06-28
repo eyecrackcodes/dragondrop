@@ -15,6 +15,8 @@ import { EmployeeModal } from "./EmployeeModal";
 import { BulkActionsModal } from "./BulkActionsModal";
 import { ChangeConfirmationModal } from "./ChangeConfirmationModal";
 import { IntegrationsModal } from "./IntegrationsModal";
+import { TerminationModal } from "./TerminationModal";
+import { TerminatedEmployeesView } from "./TerminatedEmployeesView";
 import { CollapsibleHierarchy } from "./CollapsibleHierarchy";
 import {
   useFirebaseOrgStructure,
@@ -22,7 +24,11 @@ import {
   useFirebaseEmployees,
   useFirebaseConnection,
 } from "../hooks/useFirebaseData";
-import { useMockOrgStructure, useMockDragAndDrop } from "../hooks/useMockData";
+import {
+  useMockOrgStructure,
+  useMockDragAndDrop,
+  useMockEmployees,
+} from "../hooks/useMockData";
 import {
   importRealDataToFirebase,
   validateFirebaseConnection,
@@ -157,6 +163,22 @@ export const OrgChart: React.FC<OrgChartProps> = ({
     slackConfigured: false,
   });
 
+  // Termination modal state
+  const [terminationModalOpen, setTerminationModalOpen] = useState(false);
+  const [employeeToTerminate, setEmployeeToTerminate] =
+    useState<Employee | null>(null);
+
+  // View mode state - add terminated employees view
+  const [viewMode, setViewMode] = useState<
+    | "modern-hierarchy"
+    | "detailed"
+    | "at-glance"
+    | "bulk-manage"
+    | "table"
+    | "collapsible"
+    | "terminated"
+  >("modern-hierarchy");
+
   // Check Firebase connection status
   const { isConnected, isConfigured } = useFirebaseConnection();
 
@@ -192,6 +214,27 @@ export const OrgChart: React.FC<OrgChartProps> = ({
 
   // Get Firebase employee operations (always call hooks to avoid conditional hook rule)
   const firebaseEmployees = useFirebaseEmployees();
+
+  // Get raw employee data including terminated employees for TerminatedEmployeesView
+  const rawMockData = useMockEmployees();
+
+  // Raw employees including terminated ones
+  const allEmployeesIncludingTerminated = isConnected
+    ? firebaseEmployees.employees
+    : rawMockData.employees;
+
+  // Debug: Log employee counts for terminated view
+  useEffect(() => {
+    const totalEmployees = allEmployeesIncludingTerminated.length;
+    const terminatedEmployees = allEmployeesIncludingTerminated.filter(
+      (emp) => emp.status === "terminated"
+    ).length;
+    console.log("👥 Employee counts for TerminatedEmployeesView:", {
+      total: totalEmployees,
+      terminated: terminatedEmployees,
+      active: totalEmployees - terminatedEmployees,
+    });
+  }, [allEmployeesIncludingTerminated]);
 
   // Create conditional refetch function (Firebase data is real-time, mock data needs manual refetch)
   const refetch = () => {
@@ -730,16 +773,34 @@ export const OrgChart: React.FC<OrgChartProps> = ({
   };
 
   const handleTerminate = (employee: any) => {
-    if (
-      window.confirm(`Are you sure you want to terminate ${employee.name}?`)
-    ) {
+    setEmployeeToTerminate(employee);
+    setTerminationModalOpen(true);
+  };
+
+  const handleTerminationConfirm = async (
+    employeeId: string,
+    terminationDetails: any
+  ) => {
+    try {
+      // Use the enhanced termination function
+      await firebaseEmployees.terminateEmployee(employeeId, terminationDetails);
+
+      // Add to pending changes for notification purposes
       addPendingChange({
         type: "terminate",
-        employeeName: employee.name,
-        description: `Terminate ${employee.name} (${employee.role}) - ${employee.site} site`,
+        employeeName: employeeToTerminate?.name || "Unknown",
+        description: `Employee terminated - Reason: ${terminationDetails.reason}`,
       });
 
-      alert(`📝 Change queued: ${employee.name} will be terminated`);
+      setTerminationModalOpen(false);
+      setEmployeeToTerminate(null);
+
+      setTimeout(() => {
+        refetch();
+      }, 500);
+    } catch (error) {
+      console.error("Error terminating employee:", error);
+      alert("Failed to terminate employee. Please try again.");
     }
   };
 
@@ -1082,24 +1143,19 @@ export const OrgChart: React.FC<OrgChartProps> = ({
     }
   };
 
-  // State for view toggle - Enhanced with modern views
-  const [viewMode, setViewMode] = useState<
-    "modern-hierarchy" | "detailed" | "at-glance" | "bulk-manage" | "table" | "collapsible"
-  >("modern-hierarchy"); // Default to modern full-width hierarchy view
-
   // Enhanced state for modern interface
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
   const [hoveredEmployee, setHoveredEmployee] = useState<string | null>(null);
 
   // Helper functions for modern interface
-  const expandAllTeams = () => {
-    const allManagerIds = filteredEmployees.managers.map(m => m.id);
+  const expandAllTeams = useCallback(() => {
+    const allManagerIds = filteredEmployees.managers.map((m) => m.id);
     setExpandedTeams(new Set(allManagerIds));
-  };
+  }, [filteredEmployees.managers]);
 
-  const collapseAllTeams = () => {
+  const collapseAllTeams = useCallback(() => {
     setExpandedTeams(new Set());
-  };
+  }, []);
 
   const toggleTeamExpansion = (managerId: string) => {
     const newExpanded = new Set(expandedTeams);
@@ -1115,16 +1171,21 @@ export const OrgChart: React.FC<OrgChartProps> = ({
   useEffect(() => {
     if (viewMode === "modern-hierarchy" && searchTerm.trim()) {
       const matchingManagerIds = filteredEmployees.managers
-        .filter(manager => {
-          const teamMembers = [...filteredEmployees.teamLeads, ...filteredEmployees.agents]
-            .filter(emp => emp.managerId === manager.id);
-          return teamMembers.some(emp => 
-            emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            emp.role.toLowerCase().includes(searchTerm.toLowerCase())
-          ) || manager.name.toLowerCase().includes(searchTerm.toLowerCase());
+        .filter((manager) => {
+          const teamMembers = [
+            ...filteredEmployees.teamLeads,
+            ...filteredEmployees.agents,
+          ].filter((emp) => emp.managerId === manager.id);
+          return (
+            teamMembers.some(
+              (emp) =>
+                emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                emp.role.toLowerCase().includes(searchTerm.toLowerCase())
+            ) || manager.name.toLowerCase().includes(searchTerm.toLowerCase())
+          );
         })
-        .map(m => m.id);
-      
+        .map((m) => m.id);
+
       setExpandedTeams(new Set(matchingManagerIds));
     }
   }, [searchTerm, viewMode, filteredEmployees]);
@@ -1132,16 +1193,21 @@ export const OrgChart: React.FC<OrgChartProps> = ({
   // Helper function to highlight search matches
   const highlightSearchMatch = (text: string, searchTerm: string) => {
     if (!searchTerm.trim()) return text;
-    
-    const regex = new RegExp(`(${searchTerm})`, 'gi');
+
+    const regex = new RegExp(`(${searchTerm})`, "gi");
     const parts = text.split(regex);
-    
-    return parts.map((part, index) => 
+
+    return parts.map((part, index) =>
       regex.test(part) ? (
-        <span key={index} className="bg-yellow-200 text-yellow-900 px-1 rounded font-bold">
+        <span
+          key={index}
+          className="bg-yellow-200 text-yellow-900 px-1 rounded font-bold"
+        >
           {part}
         </span>
-      ) : part
+      ) : (
+        part
+      )
     );
   };
 
@@ -1176,27 +1242,27 @@ export const OrgChart: React.FC<OrgChartProps> = ({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (viewMode !== "modern-hierarchy") return;
-      
+
       // Ctrl/Cmd + E: Expand all teams
-      if ((event.ctrlKey || event.metaKey) && event.key === 'e') {
+      if ((event.ctrlKey || event.metaKey) && event.key === "e") {
         event.preventDefault();
         expandAllTeams();
       }
-      
+
       // Ctrl/Cmd + R: Collapse all teams
-      if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
+      if ((event.ctrlKey || event.metaKey) && event.key === "r") {
         event.preventDefault();
         collapseAllTeams();
       }
-      
+
       // Escape: Clear search
-      if (event.key === 'Escape') {
-        setSearchTerm('');
+      if (event.key === "Escape") {
+        setSearchTerm("");
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [viewMode, expandAllTeams, collapseAllTeams]);
 
   // Enhanced scroll behavior for better navigation - FIXED
@@ -1312,14 +1378,12 @@ export const OrgChart: React.FC<OrgChartProps> = ({
           </div>
         </div>
 
-                 {/* Modern Navigation Header */}
-         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 mb-8">
-           {/* Main Navigation Row */}
-           <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8">
-            
-                         {/* Left Section: View Toggle & Search Controls */}
-             <div className="flex flex-col lg:flex-row items-start lg:items-center gap-5 flex-1">
-              
+        {/* Modern Navigation Header */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 mb-8">
+          {/* Main Navigation Row */}
+          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8">
+            {/* Left Section: View Toggle & Search Controls */}
+            <div className="flex flex-col lg:flex-row items-start lg:items-center gap-5 flex-1">
               {/* Modern Segmented Control - View Toggle */}
               <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-1.5 border border-gray-200 shadow-sm">
                 <div className="flex space-x-1">
@@ -1379,29 +1443,42 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                       <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-indigo-400/20 rounded-xl animate-pulse"></div>
                     )}
                   </button>
+                  <button
+                    onClick={() => setViewMode("terminated")}
+                    className={`relative px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-300 flex items-center ${
+                      viewMode === "terminated"
+                        ? "bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg transform scale-105"
+                        : "text-gray-600 hover:text-gray-800 hover:bg-white/60"
+                    }`}
+                  >
+                    <span className="mr-2.5 text-base">❌</span>
+                    <span className="whitespace-nowrap">Terminated</span>
+                    {viewMode === "terminated" && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-red-400/20 to-pink-400/20 rounded-xl animate-pulse"></div>
+                    )}
+                  </button>
                 </div>
               </div>
 
               {/* Search & Filter Controls */}
               <div className="flex items-center gap-4 flex-1 min-w-0">
-                
                 {/* Enhanced Search Input */}
                 <div className="relative flex-1 max-w-sm">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
                   </div>
-                                     <input
-                     type="text"
-                     placeholder="Search employees..."
-                     value={searchTerm}
-                     onChange={(e) => setSearchTerm(e.target.value)}
-                     className="block w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm placeholder-gray-400 bg-gray-50 
+                  <input
+                    type="text"
+                    placeholder="Search employees..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="block w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm placeholder-gray-400 bg-gray-50 
                               focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 focus:outline-none 
                               transition-all duration-300 shadow-sm hover:shadow-md hover:border-gray-300"
-                   />
+                  />
                   {searchTerm && (
                     <button
-                      onClick={() => setSearchTerm('')}
+                      onClick={() => setSearchTerm("")}
                       className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
                     >
                       <span className="text-lg">×</span>
@@ -1409,128 +1486,130 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                   )}
                 </div>
 
-                                 {/* Modern Team Filter Dropdown */}
-                 <div className="relative">
-                   <select
-                     value={selectedManagerId}
-                     onChange={(e) => setSelectedManagerId(e.target.value)}
-                     className="appearance-none bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3 pr-10 text-sm font-medium text-gray-700 
+                {/* Modern Team Filter Dropdown */}
+                <div className="relative">
+                  <select
+                    value={selectedManagerId}
+                    onChange={(e) => setSelectedManagerId(e.target.value)}
+                    className="appearance-none bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3 pr-10 text-sm font-medium text-gray-700 
                               hover:bg-white hover:border-gray-300 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 focus:outline-none 
                               transition-all duration-300 shadow-sm hover:shadow-md min-w-[200px] cursor-pointer"
-                   >
-                     <option value="all">🏢 All Teams</option>
-                     {filteredEmployees.managers.map((manager) => {
-                       const teamSize = [
-                         ...filteredEmployees.teamLeads,
-                         ...filteredEmployees.agents,
-                       ].filter((emp) => emp.managerId === manager.id).length;
-                       return (
-                         <option key={manager.id} value={manager.id}>
-                           👔 {manager.name} ({teamSize} members)
-                         </option>
-                       );
-                     })}
-                     <option value="unassigned">⚠️ Unassigned Only</option>
-                   </select>
-                   <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
-                     <ChevronDownIcon className="h-4 w-4 text-gray-400" />
-                   </div>
-                 </div>
+                  >
+                    <option value="all">🏢 All Teams</option>
+                    {filteredEmployees.managers.map((manager) => {
+                      const teamSize = [
+                        ...filteredEmployees.teamLeads,
+                        ...filteredEmployees.agents,
+                      ].filter((emp) => emp.managerId === manager.id).length;
+                      return (
+                        <option key={manager.id} value={manager.id}>
+                          👔 {manager.name} ({teamSize} members)
+                        </option>
+                      );
+                    })}
+                    <option value="unassigned">⚠️ Unassigned Only</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                    <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                  </div>
+                </div>
 
-                                 {/* Bulk Actions - Modern Style */}
-                 {showBulkActions && (
-                   <div className="flex items-center gap-3">
-                     {selectedEmployees.size > 0 ? (
-                       <div className="flex items-center gap-3">
-                         <span className="bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 px-3 py-2 rounded-xl text-sm font-semibold border border-blue-200">
-                           {selectedEmployees.size} selected
-                         </span>
-                         <button
-                           onClick={() => setBulkModalOpen(true)}
-                           className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-xl font-semibold 
+                {/* Bulk Actions - Modern Style */}
+                {showBulkActions && (
+                  <div className="flex items-center gap-3">
+                    {selectedEmployees.size > 0 ? (
+                      <div className="flex items-center gap-3">
+                        <span className="bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 px-3 py-2 rounded-xl text-sm font-semibold border border-blue-200">
+                          {selectedEmployees.size} selected
+                        </span>
+                        <button
+                          onClick={() => setBulkModalOpen(true)}
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-xl font-semibold 
                                     hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-md hover:shadow-lg 
                                     flex items-center border border-blue-500 hover:border-blue-600"
-                         >
-                           <Squares2X2Icon className="w-4 h-4 mr-2" />
-                           Actions
-                         </button>
-                         <button
-                           onClick={handleDeselectAll}
-                           className="bg-gray-50 text-gray-600 px-4 py-2 rounded-xl font-semibold border border-gray-200 
+                        >
+                          <Squares2X2Icon className="w-4 h-4 mr-2" />
+                          Actions
+                        </button>
+                        <button
+                          onClick={handleDeselectAll}
+                          className="bg-gray-50 text-gray-600 px-4 py-2 rounded-xl font-semibold border border-gray-200 
                                     hover:bg-gray-100 hover:text-gray-700 hover:border-gray-300 transition-all duration-300"
-                         >
-                           Clear
-                         </button>
-                       </div>
-                     ) : (
-                       <button
-                         onClick={handleSelectAll}
-                         className="bg-gray-50 text-gray-600 px-4 py-2 rounded-xl font-semibold border border-gray-200 
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleSelectAll}
+                        className="bg-gray-50 text-gray-600 px-4 py-2 rounded-xl font-semibold border border-gray-200 
                                   hover:bg-gray-100 hover:text-gray-700 hover:border-gray-300 transition-all duration-300"
-                       >
-                         Select All
-                       </button>
-                     )}
-                   </div>
-                 )}
+                      >
+                        Select All
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
-                         {/* Right Section: Action Buttons */}
-             <div className="flex items-center gap-4">
-              
-                             {/* Pending Changes Badge */}
-               {hasUnsavedChanges && (
-                 <button
-                   onClick={handleShowConfirmation}
-                   className="bg-gradient-to-r from-amber-600 to-orange-600 text-white px-5 py-3 rounded-xl font-semibold 
+            {/* Right Section: Action Buttons */}
+            <div className="flex items-center gap-4">
+              {/* Pending Changes Badge */}
+              {hasUnsavedChanges && (
+                <button
+                  onClick={handleShowConfirmation}
+                  className="bg-gradient-to-r from-amber-600 to-orange-600 text-white px-5 py-3 rounded-xl font-semibold 
                             hover:from-amber-700 hover:to-orange-700 transition-all duration-300 shadow-lg hover:shadow-xl 
                             flex items-center animate-pulse border border-amber-500 hover:border-amber-600"
-                 >
-                   <ExclamationTriangleIcon className="w-5 h-5 mr-2" />
-                   <span>{getPendingChangesCount()} Pending</span>
-                 </button>
-               )}
+                >
+                  <ExclamationTriangleIcon className="w-5 h-5 mr-2" />
+                  <span>{getPendingChangesCount()} Pending</span>
+                </button>
+              )}
 
-                             {/* Import Data Button */}
-               <button
-                 onClick={handleImportRealData}
-                 disabled={isImporting}
-                 className="bg-gradient-to-r from-emerald-600 to-green-600 text-white px-5 py-3 rounded-xl font-semibold 
+              {/* Import Data Button */}
+              <button
+                onClick={handleImportRealData}
+                disabled={isImporting}
+                className="bg-gradient-to-r from-emerald-600 to-green-600 text-white px-5 py-3 rounded-xl font-semibold 
                           hover:from-emerald-700 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 
                           transition-all duration-300 shadow-lg hover:shadow-xl disabled:cursor-not-allowed 
                           flex items-center disabled:opacity-75 border border-emerald-500 hover:border-emerald-600 
                           disabled:border-gray-400"
-               >
-                 <CloudArrowUpIcon className="w-5 h-5 mr-2" />
-                 <span>{isImporting ? "Importing..." : "Import Data"}</span>
-               </button>
+              >
+                <CloudArrowUpIcon className="w-5 h-5 mr-2" />
+                <span>{isImporting ? "Importing..." : "Import Data"}</span>
+              </button>
 
-               {/* Integrations Button */}
-               <button
-                 onClick={() => setIntegrationsModalOpen(true)}
-                 className="relative bg-gradient-to-r from-purple-600 to-violet-600 text-white px-5 py-3 rounded-xl font-semibold 
+              {/* Integrations Button */}
+              <button
+                onClick={() => setIntegrationsModalOpen(true)}
+                className="relative bg-gradient-to-r from-purple-600 to-violet-600 text-white px-5 py-3 rounded-xl font-semibold 
                           hover:from-purple-700 hover:to-violet-700 transition-all duration-300 shadow-lg hover:shadow-xl 
                           flex items-center border border-purple-500 hover:border-purple-600"
-               >
-                 <CogIcon className="w-5 h-5 mr-2" />
-                 <span>Integrations</span>
-                 {(integrationsStatus.n8nConfigured || integrationsStatus.slackConfigured) && (
-                   <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-green-400 to-emerald-400 
-                                rounded-full border-2 border-white shadow-lg animate-bounce"></div>
-                 )}
-               </button>
+              >
+                <CogIcon className="w-5 h-5 mr-2" />
+                <span>Integrations</span>
+                {(integrationsStatus.n8nConfigured ||
+                  integrationsStatus.slackConfigured) && (
+                  <div
+                    className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-green-400 to-emerald-400 
+                                rounded-full border-2 border-white shadow-lg animate-bounce"
+                  ></div>
+                )}
+              </button>
 
-               {/* Add Employee Button */}
-               <button
-                 onClick={() => openModal(null, "create")}
-                 className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-3 rounded-xl font-semibold 
+              {/* Add Employee Button */}
+              <button
+                onClick={() => openModal(null, "create")}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-3 rounded-xl font-semibold 
                           hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl 
                           flex items-center border border-blue-500 hover:border-blue-600"
-               >
-                 <PlusIcon className="w-5 h-5 mr-2" />
-                 <span>Add Employee</span>
-               </button>
+              >
+                <PlusIcon className="w-5 h-5 mr-2" />
+                <span>Add Employee</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1712,8 +1791,6 @@ export const OrgChart: React.FC<OrgChartProps> = ({
             </div>
           )}
         </div>
-
-
 
         {/* Statistics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
@@ -2063,8 +2140,12 @@ export const OrgChart: React.FC<OrgChartProps> = ({
             {/* Clean Header */}
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-t-xl">
               <div className="text-center">
-                <h3 className="text-2xl font-bold mb-2">🌳 {site} Organizational Tree</h3>
-                <p className="text-blue-100">Clear hierarchy view - click any employee to interact</p>
+                <h3 className="text-2xl font-bold mb-2">
+                  🌳 {site} Organizational Tree
+                </h3>
+                <p className="text-blue-100">
+                  Clear hierarchy view - click any employee to interact
+                </p>
               </div>
             </div>
 
@@ -2086,28 +2167,41 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                               <span className="text-3xl">👑</span>
                             </div>
                           </div>
-                          <h4 className="text-xl font-bold mb-1">{director.name}</h4>
-                          <p className="text-purple-200 font-medium">Site Director</p>
-                          <div className="mt-3 text-sm bg-white/10 rounded-full px-4 py-1">📍 {director.site}</div>
+                          <h4 className="text-xl font-bold mb-1">
+                            {director.name}
+                          </h4>
+                          <p className="text-purple-200 font-medium">
+                            Site Director
+                          </p>
+                          <div className="mt-3 text-sm bg-white/10 rounded-full px-4 py-1">
+                            📍 {director.site}
+                          </div>
                         </div>
                       </div>
                     </div>
 
                     {/* Connection Line */}
-                    {filteredEmployees.managers.filter(m => m.site === director.site).length > 0 && (
+                    {filteredEmployees.managers.filter(
+                      (m) => m.site === director.site
+                    ).length > 0 && (
                       <div className="w-0.5 h-12 bg-gray-300 mx-auto mb-8"></div>
                     )}
 
                     {/* Managers Level */}
                     <div className="flex flex-wrap justify-center gap-16">
                       {filteredEmployees.managers
-                        .filter(m => m.site === director.site)
+                        .filter((m) => m.site === director.site)
                         .map((manager) => {
-                          const teamMembers = [...filteredEmployees.teamLeads, ...filteredEmployees.agents]
-                            .filter(emp => emp.managerId === manager.id);
+                          const teamMembers = [
+                            ...filteredEmployees.teamLeads,
+                            ...filteredEmployees.agents,
+                          ].filter((emp) => emp.managerId === manager.id);
 
                           return (
-                            <div key={manager.id} className="flex flex-col items-center">
+                            <div
+                              key={manager.id}
+                              className="flex flex-col items-center"
+                            >
                               {/* Manager Card */}
                               <div
                                 onClick={() => handleView(manager)}
@@ -2119,8 +2213,12 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                                       <span className="text-2xl">👔</span>
                                     </div>
                                   </div>
-                                  <h5 className="text-lg font-semibold mb-1">{manager.name}</h5>
-                                  <p className="text-blue-100 text-sm">Sales Manager</p>
+                                  <h5 className="text-lg font-semibold mb-1">
+                                    {manager.name}
+                                  </h5>
+                                  <p className="text-blue-100 text-sm">
+                                    Sales Manager
+                                  </p>
                                   <div className="mt-2 text-xs bg-white/10 rounded-full px-3 py-1">
                                     👥 {teamMembers.length} Team Members
                                   </div>
@@ -2132,14 +2230,22 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                                 <>
                                   {/* Connection Line */}
                                   <div className="w-0.5 h-8 bg-gray-300 mb-4"></div>
-                                  
+
                                   {/* Team Grid */}
                                   <div className="grid grid-cols-3 gap-3 max-w-[300px]">
                                     {teamMembers
                                       .sort((a, b) => {
                                         // Team Leads first, then Agents
-                                        if (a.role === "Team Lead" && b.role === "Agent") return -1;
-                                        if (a.role === "Agent" && b.role === "Team Lead") return 1;
+                                        if (
+                                          a.role === "Team Lead" &&
+                                          b.role === "Agent"
+                                        )
+                                          return -1;
+                                        if (
+                                          a.role === "Agent" &&
+                                          b.role === "Team Lead"
+                                        )
+                                          return 1;
                                         return a.name.localeCompare(b.name);
                                       })
                                       .map((employee) => (
@@ -2148,19 +2254,28 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                                           onClick={() => handleView(employee)}
                                           className="cursor-pointer transform hover:scale-105 transition-all duration-200"
                                         >
-                                          <div className={`rounded-lg p-3 text-center shadow-sm border-2 ${
-                                            employee.role === "Team Lead"
-                                              ? "bg-green-500 text-white border-green-400"
-                                              : "bg-gray-500 text-white border-gray-400"
-                                          }`}>
+                                          <div
+                                            className={`rounded-lg p-3 text-center shadow-sm border-2 ${
+                                              employee.role === "Team Lead"
+                                                ? "bg-green-500 text-white border-green-400"
+                                                : "bg-gray-500 text-white border-gray-400"
+                                            }`}
+                                          >
                                             <div className="text-base mb-1">
-                                              {employee.role === "Team Lead" ? "🎯" : "💼"}
+                                              {employee.role === "Team Lead"
+                                                ? "🎯"
+                                                : "💼"}
                                             </div>
-                                            <div className="text-xs font-medium truncate" title={employee.name}>
+                                            <div
+                                              className="text-xs font-medium truncate"
+                                              title={employee.name}
+                                            >
                                               {employee.name.split(" ")[0]}
                                             </div>
                                             <div className="text-xs opacity-80 mt-1">
-                                              {employee.role === "Team Lead" ? "Lead" : "Agent"}
+                                              {employee.role === "Team Lead"
+                                                ? "Lead"
+                                                : "Agent"}
                                             </div>
                                           </div>
                                         </div>
@@ -2173,7 +2288,9 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                                     <div className="text-2xl mb-2">👥</div>
                                     <p className="text-sm">No team assigned</p>
                                     {isDragging && (
-                                      <p className="text-xs text-blue-600 mt-1">Drop here to assign</p>
+                                      <p className="text-xs text-blue-600 mt-1">
+                                        Drop here to assign
+                                      </p>
                                     )}
                                   </div>
                                 </div>
@@ -2191,7 +2308,9 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                     <div className="text-center">
                       <div className="flex items-center justify-center mb-4">
                         <ExclamationTriangleIcon className="w-6 h-6 text-yellow-600 mr-2" />
-                        <span className="text-lg font-semibold text-yellow-800">Unassigned Employees</span>
+                        <span className="text-lg font-semibold text-yellow-800">
+                          Unassigned Employees
+                        </span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                         {unassignedEmployees.map((employee) => (
@@ -2204,10 +2323,15 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                               <div className="text-lg mb-1">
                                 {employee.role === "Team Lead" ? "🎯" : "💼"}
                               </div>
-                              <div className="text-sm font-medium text-gray-800 truncate" title={employee.name}>
+                              <div
+                                className="text-sm font-medium text-gray-800 truncate"
+                                title={employee.name}
+                              >
                                 {employee.name}
                               </div>
-                              <div className="text-xs text-gray-600 mt-1">{employee.role}</div>
+                              <div className="text-xs text-gray-600 mt-1">
+                                {employee.role}
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -2240,7 +2364,8 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                   </span>
                 </div>
                 <div className="font-medium">
-                  Total: {Object.values(filteredEmployees).flat().length} employees
+                  Total: {Object.values(filteredEmployees).flat().length}{" "}
+                  employees
                 </div>
               </div>
             </div>
@@ -2252,65 +2377,97 @@ export const OrgChart: React.FC<OrgChartProps> = ({
           <div className="space-y-6">
             {/* Enhanced Header with Analytics Dashboard */}
             <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-2xl">
-                             <div className="flex items-center justify-between mb-6">
-                 <div>
-                   <h2 className="text-3xl font-black mb-2">Team Management Dashboard</h2>
-                   <p className="text-blue-100 text-lg font-medium">Interactive organizational structure with enhanced team insights</p>
-                 </div>
-                                    <div className="flex items-center space-x-6">
-                     <div className="flex items-center space-x-3">
-                       <button
-                         onClick={expandAllTeams}
-                         className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-colors backdrop-blur-sm border border-white/30"
-                         title="Expand all teams (Ctrl+E)"
-                       >
-                         📖 Expand All
-                       </button>
-                       <button
-                         onClick={collapseAllTeams}
-                         className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-colors backdrop-blur-sm border border-white/30"
-                         title="Collapse all teams (Ctrl+R)"
-                       >
-                         📑 Collapse All
-                       </button>
-                       <div className="bg-white/20 text-white px-3 py-2 rounded-lg border border-white/30 text-sm">
-                         <span className="opacity-75">💡 Ctrl+E: Expand • Ctrl+R: Collapse • Esc: Clear search</span>
-                       </div>
-                     </div>
-                   <div className="text-right">
-                     <div className="text-4xl font-black">{Object.values(filteredEmployees).flat().length}</div>
-                     <div className="text-blue-100 font-medium">Total Team Members</div>
-                   </div>
-                 </div>
-               </div>
-              
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-3xl font-black mb-2">
+                    Team Management Dashboard
+                  </h2>
+                  <p className="text-blue-100 text-lg font-medium">
+                    Interactive organizational structure with enhanced team
+                    insights
+                  </p>
+                </div>
+                <div className="flex items-center space-x-6">
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={expandAllTeams}
+                      className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-colors backdrop-blur-sm border border-white/30"
+                      title="Expand all teams (Ctrl+E)"
+                    >
+                      📖 Expand All
+                    </button>
+                    <button
+                      onClick={collapseAllTeams}
+                      className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-colors backdrop-blur-sm border border-white/30"
+                      title="Collapse all teams (Ctrl+R)"
+                    >
+                      📑 Collapse All
+                    </button>
+                    <div className="bg-white/20 text-white px-3 py-2 rounded-lg border border-white/30 text-sm">
+                      <span className="opacity-75">
+                        💡 Ctrl+E: Expand • Ctrl+R: Collapse • Esc: Clear search
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-4xl font-black">
+                      {Object.values(filteredEmployees).flat().length}
+                    </div>
+                    <div className="text-blue-100 font-medium">
+                      Total Team Members
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Live Statistics Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                  <div className="text-2xl font-black">{filteredEmployees.directors.length}</div>
-                  <div className="text-blue-100 text-sm font-medium">👑 Directors</div>
+                  <div className="text-2xl font-black">
+                    {filteredEmployees.directors.length}
+                  </div>
+                  <div className="text-blue-100 text-sm font-medium">
+                    👑 Directors
+                  </div>
                 </div>
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                  <div className="text-2xl font-black">{filteredEmployees.managers.length}</div>
-                  <div className="text-blue-100 text-sm font-medium">👔 Managers</div>
+                  <div className="text-2xl font-black">
+                    {filteredEmployees.managers.length}
+                  </div>
+                  <div className="text-blue-100 text-sm font-medium">
+                    👔 Managers
+                  </div>
                 </div>
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                  <div className="text-2xl font-black">{filteredEmployees.teamLeads.length}</div>
-                  <div className="text-blue-100 text-sm font-medium">🎯 Team Leads</div>
+                  <div className="text-2xl font-black">
+                    {filteredEmployees.teamLeads.length}
+                  </div>
+                  <div className="text-blue-100 text-sm font-medium">
+                    🎯 Team Leads
+                  </div>
                 </div>
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                  <div className="text-2xl font-black">{filteredEmployees.agents.length}</div>
-                  <div className="text-blue-100 text-sm font-medium">💼 Agents</div>
+                  <div className="text-2xl font-black">
+                    {filteredEmployees.agents.length}
+                  </div>
+                  <div className="text-blue-100 text-sm font-medium">
+                    💼 Agents
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Modern Team Structure - Full Width Layout */}
             {filteredEmployees.directors.map((director) => {
-              const directorManagers = filteredEmployees.managers.filter(m => m.site === director.site);
-              
+              const directorManagers = filteredEmployees.managers.filter(
+                (m) => m.site === director.site
+              );
+
               return (
-                <div key={director.id} className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+                <div
+                  key={director.id}
+                  className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden"
+                >
                   {/* Director Header - Enhanced */}
                   <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-6">
                     <div className="flex items-center justify-between">
@@ -2319,16 +2476,25 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                           <span className="text-3xl">👑</span>
                         </div>
                         <div>
-                                                     <h3 
-                             className="text-2xl font-black cursor-pointer hover:text-purple-100 transition-colors"
-                             onClick={() => handleView(director)}
-                           >
-                             {highlightSearchMatch(director.name, searchTerm)}
-                           </h3>
-                          <div className="text-purple-100 font-medium">Site Director • {director.site}</div>
+                          <h3
+                            className="text-2xl font-black cursor-pointer hover:text-purple-100 transition-colors"
+                            onClick={() => handleView(director)}
+                          >
+                            {highlightSearchMatch(director.name, searchTerm)}
+                          </h3>
+                          <div className="text-purple-100 font-medium">
+                            Site Director • {director.site}
+                          </div>
                           <div className="flex items-center space-x-4 mt-2 text-sm text-purple-200">
-                            <span>📅 {new Date(director.startDate).toLocaleDateString()}</span>
-                            <span>👥 {directorManagers.length} Manager Teams</span>
+                            <span>
+                              📅{" "}
+                              {new Date(
+                                director.startDate
+                              ).toLocaleDateString()}
+                            </span>
+                            <span>
+                              👥 {directorManagers.length} Manager Teams
+                            </span>
                             <span>🏢 {director.site} Site</span>
                           </div>
                         </div>
@@ -2336,11 +2502,20 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                       <div className="text-right">
                         <div className="text-2xl font-black">
                           {directorManagers.reduce((total, manager) => {
-                            return total + [...filteredEmployees.teamLeads, ...filteredEmployees.agents]
-                              .filter(emp => emp.managerId === manager.id).length + 1;
+                            return (
+                              total +
+                              [
+                                ...filteredEmployees.teamLeads,
+                                ...filteredEmployees.agents,
+                              ].filter((emp) => emp.managerId === manager.id)
+                                .length +
+                              1
+                            );
                           }, 1)}
                         </div>
-                        <div className="text-purple-100 text-sm">Total Team Size</div>
+                        <div className="text-purple-100 text-sm">
+                          Total Team Size
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2349,37 +2524,71 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                   <div className="p-6">
                     <div className="grid gap-6">
                       {directorManagers.map((manager) => {
-                        const teamMembers = [...filteredEmployees.teamLeads, ...filteredEmployees.agents]
-                          .filter(emp => emp.managerId === manager.id);
-                        const teamLeads = teamMembers.filter(emp => emp.role === "Team Lead");
-                        const agents = teamMembers.filter(emp => emp.role === "Agent");
+                        const teamMembers = [
+                          ...filteredEmployees.teamLeads,
+                          ...filteredEmployees.agents,
+                        ].filter((emp) => emp.managerId === manager.id);
+                        const teamLeads = teamMembers.filter(
+                          (emp) => emp.role === "Team Lead"
+                        );
+                        const agents = teamMembers.filter(
+                          (emp) => emp.role === "Agent"
+                        );
                         const isExpanded = expandedTeams.has(manager.id);
 
                         return (
-                          <div key={manager.id} className="border border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300">
+                          <div
+                            key={manager.id}
+                            className="border border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300"
+                          >
                             {/* Manager Header - Clickable & Interactive */}
-                                                         <div 
-                               className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 cursor-pointer hover:from-blue-100 hover:to-indigo-100 transition-all duration-300"
-                               onClick={() => toggleTeamExpansion(manager.id)}
-                             >
+                            <div
+                              className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 cursor-pointer hover:from-blue-100 hover:to-indigo-100 transition-all duration-300"
+                              onClick={() => toggleTeamExpansion(manager.id)}
+                            >
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-4">
                                   <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center shadow-md">
-                                    <span className="text-white text-xl font-bold">👔</span>
+                                    <span className="text-white text-xl font-bold">
+                                      👔
+                                    </span>
                                   </div>
                                   <div>
-                                                                         <h4 
-                                       className="text-xl font-black text-gray-900 hover:text-blue-600 transition-colors"
-                                       onClick={(e) => { e.stopPropagation(); handleView(manager); }}
-                                     >
-                                       {highlightSearchMatch(manager.name, searchTerm)}
-                                     </h4>
+                                    <h4
+                                      className="text-xl font-black text-gray-900 hover:text-blue-600 transition-colors"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleView(manager);
+                                      }}
+                                    >
+                                      {highlightSearchMatch(
+                                        manager.name,
+                                        searchTerm
+                                      )}
+                                    </h4>
                                     <div className="flex items-center space-x-4 text-sm text-gray-600">
                                       <span>📍 {manager.site}</span>
-                                      <span>📅 {new Date(manager.startDate).toLocaleDateString()}</span>
-                                      <span>👥 {teamMembers.length + 1} Members</span>
-                                      {teamLeads.length > 0 && <span>🎯 {teamLeads.length} Lead{teamLeads.length > 1 ? 's' : ''}</span>}
-                                      {agents.length > 0 && <span>💼 {agents.length} Agent{agents.length > 1 ? 's' : ''}</span>}
+                                      <span>
+                                        📅{" "}
+                                        {new Date(
+                                          manager.startDate
+                                        ).toLocaleDateString()}
+                                      </span>
+                                      <span>
+                                        👥 {teamMembers.length + 1} Members
+                                      </span>
+                                      {teamLeads.length > 0 && (
+                                        <span>
+                                          🎯 {teamLeads.length} Lead
+                                          {teamLeads.length > 1 ? "s" : ""}
+                                        </span>
+                                      )}
+                                      {agents.length > 0 && (
+                                        <span>
+                                          💼 {agents.length} Agent
+                                          {agents.length > 1 ? "s" : ""}
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -2387,14 +2596,20 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                                   {/* Quick Actions */}
                                   <div className="flex items-center space-x-2">
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); handleEdit(manager); }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEdit(manager);
+                                      }}
                                       className="w-10 h-10 bg-blue-100 hover:bg-blue-200 rounded-lg flex items-center justify-center transition-colors"
                                       title="Edit Manager"
                                     >
                                       <span className="text-blue-600">✏️</span>
                                     </button>
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); handleView(manager); }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleView(manager);
+                                      }}
                                       className="w-10 h-10 bg-green-100 hover:bg-green-200 rounded-lg flex items-center justify-center transition-colors"
                                       title="View Details"
                                     >
@@ -2402,7 +2617,11 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                                     </button>
                                   </div>
                                   {/* Expand/Collapse Toggle */}
-                                  <div className={`transform transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                                  <div
+                                    className={`transform transition-transform duration-300 ${
+                                      isExpanded ? "rotate-180" : ""
+                                    }`}
+                                  >
                                     <ChevronDownIcon className="w-6 h-6 text-gray-500" />
                                   </div>
                                 </div>
@@ -2413,7 +2632,9 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                             {isExpanded && (
                               <div className="p-4 bg-gray-50">
                                 <DropZone
-                                  onDrop={(droppedId) => handleDrop(manager.id, droppedId)}
+                                  onDrop={(droppedId) =>
+                                    handleDrop(manager.id, droppedId)
+                                  }
                                   className={`rounded-xl transition-all duration-300 ${
                                     isDragging
                                       ? "border-2 border-dashed border-green-400 bg-green-50 p-4"
@@ -2426,44 +2647,77 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
                                       {teamMembers
                                         .sort((a, b) => {
-                                          if (a.role === "Team Lead" && b.role === "Agent") return -1;
-                                          if (a.role === "Agent" && b.role === "Team Lead") return 1;
+                                          if (
+                                            a.role === "Team Lead" &&
+                                            b.role === "Agent"
+                                          )
+                                            return -1;
+                                          if (
+                                            a.role === "Agent" &&
+                                            b.role === "Team Lead"
+                                          )
+                                            return 1;
                                           return a.name.localeCompare(b.name);
                                         })
                                         .map((employee) => (
                                           <div
                                             key={employee.id}
                                             className="relative group"
-                                            onMouseEnter={() => setHoveredEmployee(employee.id)}
-                                            onMouseLeave={() => setHoveredEmployee(null)}
+                                            onMouseEnter={() =>
+                                              setHoveredEmployee(employee.id)
+                                            }
+                                            onMouseLeave={() =>
+                                              setHoveredEmployee(null)
+                                            }
                                           >
                                             {/* Enhanced Employee Card with Role Badge */}
                                             <div className="relative">
                                               <div className="absolute -top-2 -right-2 z-10">
-                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold shadow-lg ${
-                                                  employee.role === 'Team Lead' 
-                                                    ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' 
-                                                    : 'bg-gradient-to-r from-gray-500 to-slate-500 text-white'
-                                                }`}>
-                                                  {employee.role === 'Team Lead' ? '🎯 LEAD' : '💼 AGENT'}
+                                                <span
+                                                  className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold shadow-lg ${
+                                                    employee.role ===
+                                                    "Team Lead"
+                                                      ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white"
+                                                      : "bg-gradient-to-r from-gray-500 to-slate-500 text-white"
+                                                  }`}
+                                                >
+                                                  {employee.role === "Team Lead"
+                                                    ? "🎯 LEAD"
+                                                    : "💼 AGENT"}
                                                 </span>
                                               </div>
-                                              <div 
+                                              <div
                                                 className={`transition-all duration-300 ${
-                                                  hoveredEmployee === employee.id ? 'scale-105 shadow-xl' : 'hover:scale-102'
+                                                  hoveredEmployee ===
+                                                  employee.id
+                                                    ? "scale-105 shadow-xl"
+                                                    : "hover:scale-102"
                                                 }`}
-                                                onClick={() => handleView(employee)}
+                                                onClick={() =>
+                                                  handleView(employee)
+                                                }
                                               >
                                                 <EmployeeCard
                                                   employee={employee}
                                                   onView={handleView}
                                                   onEdit={handleEdit}
-                                                  onPromote={(emp) => handlePromote(emp.id, emp.role)}
+                                                  onPromote={(emp) =>
+                                                    handlePromote(
+                                                      emp.id,
+                                                      emp.role
+                                                    )
+                                                  }
                                                   onTransfer={handleTransfer}
                                                   onTerminate={handleTerminate}
-                                                  onSelect={handleEmployeeSelect}
-                                                  isSelected={selectedEmployees.has(employee.id)}
-                                                  showBulkActions={showBulkActions}
+                                                  onSelect={
+                                                    handleEmployeeSelect
+                                                  }
+                                                  isSelected={selectedEmployees.has(
+                                                    employee.id
+                                                  )}
+                                                  showBulkActions={
+                                                    showBulkActions
+                                                  }
                                                   isDragMode={true}
                                                   onDragStart={handleDragStart}
                                                   onDragEnd={handleDragEnd}
@@ -2478,10 +2732,17 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                                       <div className="w-20 h-20 bg-gray-200 rounded-full mx-auto mb-4 flex items-center justify-center">
                                         <span className="text-3xl">👥</span>
                                       </div>
-                                      <h4 className="text-lg font-bold text-gray-600 mb-2">No Team Members Yet</h4>
-                                      <p className="text-gray-500 mb-4">Drag employees here to build {manager.name}'s team</p>
+                                      <h4 className="text-lg font-bold text-gray-600 mb-2">
+                                        No Team Members Yet
+                                      </h4>
+                                      <p className="text-gray-500 mb-4">
+                                        Drag employees here to build{" "}
+                                        {manager.name}'s team
+                                      </p>
                                       <button
-                                        onClick={() => openModal(null, "create")}
+                                        onClick={() =>
+                                          openModal(null, "create")
+                                        }
                                         className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
                                       >
                                         Add Team Member
@@ -2501,7 +2762,10 @@ export const OrgChart: React.FC<OrgChartProps> = ({
             })}
 
             {/* Unassigned Employees - Enhanced Action Center */}
-            {([...filteredEmployees.teamLeads, ...filteredEmployees.agents].filter(emp => !emp.managerId).length > 0) && (
+            {[
+              ...filteredEmployees.teamLeads,
+              ...filteredEmployees.agents,
+            ].filter((emp) => !emp.managerId).length > 0 && (
               <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-2xl border-2 border-red-200 overflow-hidden">
                 <div className="bg-gradient-to-r from-red-500 to-orange-500 text-white p-6">
                   <div className="flex items-center justify-between">
@@ -2510,22 +2774,36 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                         <span className="text-3xl">⚠️</span>
                       </div>
                       <div>
-                        <h3 className="text-2xl font-black">Unassigned Employees</h3>
-                        <p className="text-red-100 font-medium">Requires immediate attention and team assignment</p>
+                        <h3 className="text-2xl font-black">
+                          Unassigned Employees
+                        </h3>
+                        <p className="text-red-100 font-medium">
+                          Requires immediate attention and team assignment
+                        </p>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-3xl font-black">
-                        {[...filteredEmployees.teamLeads, ...filteredEmployees.agents].filter(emp => !emp.managerId).length}
+                        {
+                          [
+                            ...filteredEmployees.teamLeads,
+                            ...filteredEmployees.agents,
+                          ].filter((emp) => !emp.managerId).length
+                        }
                       </div>
-                      <div className="text-red-100 text-sm">Need Assignment</div>
+                      <div className="text-red-100 text-sm">
+                        Need Assignment
+                      </div>
                     </div>
                   </div>
                 </div>
                 <div className="p-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                    {[...filteredEmployees.teamLeads, ...filteredEmployees.agents]
-                      .filter(emp => !emp.managerId)
+                    {[
+                      ...filteredEmployees.teamLeads,
+                      ...filteredEmployees.agents,
+                    ]
+                      .filter((emp) => !emp.managerId)
                       .map((employee) => (
                         <div key={employee.id} className="relative">
                           <div className="absolute -top-2 -right-2 z-10">
@@ -2664,7 +2942,9 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                             <div className="flex items-center justify-between">
                               <div className="flex items-center space-x-3">
                                 <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                                  <span className="text-white font-bold text-sm">👔</span>
+                                  <span className="text-white font-bold text-sm">
+                                    👔
+                                  </span>
                                 </div>
                                 <div>
                                   <h4 className="text-gray-900 font-bold text-base">
@@ -2672,9 +2952,15 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                                   </h4>
                                   <div className="flex items-center space-x-3 text-xs text-gray-600">
                                     <span>🏢 {manager.site}</span>
-                                    <span>👥 {directReports.length + 1} Members</span>
-                                    {teamLeads.length > 0 && <span>🎯 {teamLeads.length} Lead</span>}
-                                    {agents.length > 0 && <span>💼 {agents.length} Agents</span>}
+                                    <span>
+                                      👥 {directReports.length + 1} Members
+                                    </span>
+                                    {teamLeads.length > 0 && (
+                                      <span>🎯 {teamLeads.length} Lead</span>
+                                    )}
+                                    {agents.length > 0 && (
+                                      <span>💼 {agents.length} Agents</span>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -2684,7 +2970,9 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                           {/* Single Row Team Layout */}
                           <div className="p-4">
                             <DropZone
-                              onDrop={(droppedId) => handleDrop(manager.id, droppedId)}
+                              onDrop={(droppedId) =>
+                                handleDrop(manager.id, droppedId)
+                              }
                               className={`relative rounded-lg transition-all ${
                                 isDragging
                                   ? "border-2 border-dashed border-green-400 bg-green-50"
@@ -2710,11 +2998,15 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                                     employee={manager}
                                     onView={handleView}
                                     onEdit={handleEdit}
-                                    onPromote={(emp) => handlePromote(emp.id, emp.role)}
+                                    onPromote={(emp) =>
+                                      handlePromote(emp.id, emp.role)
+                                    }
                                     onTransfer={handleTransfer}
                                     onTerminate={handleTerminate}
                                     onSelect={handleEmployeeSelect}
-                                    isSelected={selectedEmployees.has(manager.id)}
+                                    isSelected={selectedEmployees.has(
+                                      manager.id
+                                    )}
                                     showBulkActions={showBulkActions}
                                     isDragMode={true}
                                     onDragStart={handleDragStart}
@@ -2726,8 +3018,16 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                                 {directReports
                                   .sort((a, b) => {
                                     // Team Leads first, then Agents
-                                    if (a.role === "Team Lead" && b.role === "Agent") return -1;
-                                    if (a.role === "Agent" && b.role === "Team Lead") return 1;
+                                    if (
+                                      a.role === "Team Lead" &&
+                                      b.role === "Agent"
+                                    )
+                                      return -1;
+                                    if (
+                                      a.role === "Agent" &&
+                                      b.role === "Team Lead"
+                                    )
+                                      return 1;
                                     return a.name.localeCompare(b.name);
                                   })
                                   .map((employee) => (
@@ -2737,12 +3037,16 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                                       className="cursor-pointer relative flex-shrink-0"
                                     >
                                       <div className="absolute -top-1 -right-1 z-10">
-                                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                                          employee.role === 'Team Lead' 
-                                            ? 'bg-green-100 text-green-800 shadow-sm border border-green-200' 
-                                            : 'bg-gray-100 text-gray-800 shadow-sm border border-gray-200'
-                                        }`}>
-                                          {employee.role === 'Team Lead' ? '🎯' : '💼'}
+                                        <span
+                                          className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                                            employee.role === "Team Lead"
+                                              ? "bg-green-100 text-green-800 shadow-sm border border-green-200"
+                                              : "bg-gray-100 text-gray-800 shadow-sm border border-gray-200"
+                                          }`}
+                                        >
+                                          {employee.role === "Team Lead"
+                                            ? "🎯"
+                                            : "💼"}
                                         </span>
                                       </div>
                                       <EmployeeCard
@@ -2750,11 +3054,15 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                                         employee={employee}
                                         onView={handleView}
                                         onEdit={handleEdit}
-                                        onPromote={(emp) => handlePromote(emp.id, emp.role)}
+                                        onPromote={(emp) =>
+                                          handlePromote(emp.id, emp.role)
+                                        }
                                         onTransfer={handleTransfer}
                                         onTerminate={handleTerminate}
                                         onSelect={handleEmployeeSelect}
-                                        isSelected={selectedEmployees.has(employee.id)}
+                                        isSelected={selectedEmployees.has(
+                                          employee.id
+                                        )}
                                         showBulkActions={showBulkActions}
                                         isDragMode={true}
                                         onDragStart={handleDragStart}
@@ -3557,6 +3865,25 @@ export const OrgChart: React.FC<OrgChartProps> = ({
           </button>
         </div>
       )}
+
+      {/* Terminated Employees View */}
+      {viewMode === "terminated" && (
+        <TerminatedEmployeesView
+          employees={allEmployeesIncludingTerminated}
+          site={site}
+        />
+      )}
+
+      {/* Termination Modal */}
+      <TerminationModal
+        employee={employeeToTerminate}
+        isOpen={terminationModalOpen}
+        onClose={() => {
+          setTerminationModalOpen(false);
+          setEmployeeToTerminate(null);
+        }}
+        onConfirm={handleTerminationConfirm}
+      />
 
       {/* Integrations Modal */}
       <IntegrationsModal

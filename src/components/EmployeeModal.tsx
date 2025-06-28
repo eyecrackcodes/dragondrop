@@ -10,6 +10,8 @@ import { format } from "date-fns";
 import {
   calculateAgentCommission,
   getCompensationInfo,
+  validateCommissionTierChange,
+  canPromoteToVeteran,
 } from "../utils/commissionCalculator";
 
 interface EmployeeModalProps {
@@ -413,15 +415,30 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        const janTwentieth = new Date(2025, 0, 20); // January 20, 2025
+                        const nineMonths = new Date();
+                        nineMonths.setMonth(nineMonths.getMonth() - 9);
                         setFormData({
                           ...formData,
-                          startDate: janTwentieth.getTime(),
+                          startDate: nineMonths.getTime(),
                         });
                       }}
-                      className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                      className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200"
                     >
-                      Jan 20, 2025
+                      9 Months Ago
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const oneYear = new Date();
+                        oneYear.setFullYear(oneYear.getFullYear() - 1);
+                        setFormData({
+                          ...formData,
+                          startDate: oneYear.getTime(),
+                        });
+                      }}
+                      className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
+                    >
+                      1 Year Ago
                     </button>
                   </div>
                 </div>
@@ -471,17 +488,85 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                   </label>
                   <select
                     value={formData.commissionTier || "new"}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const newTier = e.target.value as CommissionTier;
+
+                      // In edit mode, allow data corrections with a warning for veteran→new changes
+                      if (
+                        employee?.commissionTier === "veteran" &&
+                        newTier === "new"
+                      ) {
+                        const confirmed = window.confirm(
+                          "⚠️ DATA CORRECTION MODE ⚠️\n\n" +
+                            "You are changing this agent from Veteran back to New status. " +
+                            "This should only be done to correct incorrect data.\n\n" +
+                            "Are you sure this is a data correction and not a demotion?"
+                        );
+                        if (!confirmed) return;
+                      }
+
+                      // For manual promotion to veteran, add confirmation (but allow it)
+                      if (
+                        newTier === "veteran" &&
+                        employee?.commissionTier !== "veteran"
+                      ) {
+                        const confirmed = window.confirm(
+                          "Are you sure you want to promote this agent to veteran status? " +
+                            "This will give them the 30k base + 20% commission structure. " +
+                            "This change cannot be undone through normal operations."
+                        );
+                        if (!confirmed) return;
+                      }
+
                       setFormData({
                         ...formData,
-                        commissionTier: e.target.value as CommissionTier,
-                      })
-                    }
+                        commissionTier: newTier,
+                      });
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="new">New Agent (First 6 months)</option>
-                    <option value="veteran">Veteran Agent (6+ months)</option>
+                    <option value="new">
+                      New Agent - $60k + 5% commission
+                    </option>
+                    <option value="veteran">
+                      Veteran Agent - $30k + 20% commission
+                    </option>
                   </select>
+
+                  {/* Show data correction info */}
+                  {!isViewMode && (
+                    <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-md">
+                      <p className="text-sm text-gray-700">
+                        <strong>Data Correction Mode:</strong> You can adjust
+                        both start dates and commission tiers to correct any
+                        incorrect data. This includes changing veteran agents
+                        back to new status if needed.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Show promotion eligibility info */}
+                  {employee && employee.commissionTier !== "veteran" && (
+                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-sm text-blue-800">
+                        <strong>Manual Promotion Available:</strong> This agent
+                        can be promoted to veteran status early based on
+                        performance. Once promoted, they cannot return to the
+                        new agent structure through normal operations.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Show early promotion status */}
+                  {commissionDetails?.isEarlyPromotion && (
+                    <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                      <p className="text-sm text-green-800">
+                        <strong>Early Promotion:</strong> This agent was
+                        promoted to veteran status before completing 6 months of
+                        service.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

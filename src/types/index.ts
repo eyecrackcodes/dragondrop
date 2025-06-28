@@ -1,8 +1,13 @@
-export type Role = 'Sales Director' | 'Sales Manager' | 'Team Lead' | 'Agent';
-export type Site = 'Austin' | 'Charlotte';
-export type Status = 'active' | 'terminated';
-export type CommissionTier = 'new' | 'veteran';
-export type ChangeType = 'promotion' | 'transfer' | 'new_hire' | 'termination' | 'commission_change';
+export type Role = "Sales Director" | "Sales Manager" | "Team Lead" | "Agent";
+export type Site = "Austin" | "Charlotte";
+export type Status = "active" | "terminated";
+export type CommissionTier = "new" | "veteran";
+export type ChangeType =
+  | "promotion"
+  | "transfer"
+  | "new_hire"
+  | "termination"
+  | "commission_change";
 
 export interface Employee {
   id: string;
@@ -15,7 +20,48 @@ export interface Employee {
   status: Status;
   commissionTier?: CommissionTier; // only for agents
   notes?: string;
+  termination?: TerminationDetails;
 }
+
+export interface TerminationDetails {
+  terminationDate: number; // timestamp
+  reason: TerminationReason;
+  terminatedBy: string; // user who initiated termination
+  notes: string;
+  documents: TerminationDocument[];
+  exitSurveyCompleted?: boolean;
+  finalPayoutAmount?: number;
+  lastWorkingDay: number; // timestamp
+}
+
+export interface TerminationDocument {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: string;
+  uploadDate: number; // timestamp
+  uploadedBy: string;
+  category: DocumentCategory;
+}
+
+export type TerminationReason =
+  | "voluntary_resignation"
+  | "involuntary_termination"
+  | "performance_issues"
+  | "misconduct"
+  | "layoff"
+  | "position_elimination"
+  | "end_of_contract"
+  | "retirement"
+  | "other";
+
+export type DocumentCategory =
+  | "termination_letter"
+  | "resignation_letter"
+  | "final_pay_stub"
+  | "exit_interview"
+  | "equipment_return"
+  | "other";
 
 export interface Team {
   teamId: string;
@@ -43,7 +89,7 @@ export interface ExitSurveyResponse {
   couldImprove: string;
   teamCultureDescription: string;
   wouldRecommend: string;
-  wouldReturn: 'Yes' | 'No' | 'Maybe';
+  wouldReturn: "Yes" | "No" | "Maybe";
   additionalComments: string;
 }
 
@@ -72,30 +118,31 @@ export interface CompensationInfo {
 }
 
 export const ROLE_COMPENSATION: Record<Role, CompensationInfo> = {
-  'Sales Director': {
+  "Sales Director": {
     baseSalary: 0, // unknown
     commissionRate: 0,
-    description: 'Compensation TBD'
+    description: "Compensation TBD",
   },
-  'Sales Manager': {
+  "Sales Manager": {
     baseSalary: 90000,
     commissionRate: 0,
-    description: '$90k annual salary'
+    description: "$90k annual salary",
   },
-  'Team Lead': {
+  "Team Lead": {
     baseSalary: 40000,
-    commissionRate: 0.20,
-    description: '$40k annual salary + 20% commission'
+    commissionRate: 0.2,
+    description: "$40k annual salary + 20% commission",
   },
-  'Agent': {
-    baseSalary: 60000, // First 6 months
+  Agent: {
+    baseSalary: 60000, // New agent tier
     commissionRate: 0.05,
-    description: '$60k salary + 5% commission (first 6 months), then $30k + 20% commission'
-  }
+    description:
+      "$60k salary + 5% commission (new agents), $30k + 20% commission (veteran agents - eligible after 6 months or by performance-based early promotion)",
+  },
 };
 
 export const AGENT_VETERAN_COMPENSATION: CompensationInfo = {
   baseSalary: 30000,
-  commissionRate: 0.20,
-  description: '$30k annual salary + 20% commission'
-}; 
+  commissionRate: 0.2,
+  description: "$30k annual salary + 20% commission",
+};
