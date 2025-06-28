@@ -14,6 +14,7 @@ import { OrgChart } from "./components/OrgChart";
 import { CommissionDashboard } from "./components/CommissionDashboard";
 import { LandingPage } from "./components/LandingPage";
 import { TenureAlertsDashboard } from "./components/TenureAlertsDashboard";
+import { CelebrationsDashboard } from "./components/CelebrationsDashboard";
 import {
   useFirebaseCommissionAlerts,
   useFirebaseEmployees,
@@ -27,6 +28,7 @@ import {
   UserGroupIcon,
   SparklesIcon,
   BellAlertIcon,
+  GiftIcon,
 } from "@heroicons/react/24/outline";
 import "./App.css";
 
@@ -44,7 +46,8 @@ type ActiveView =
   | "landing"
   | "org-chart"
   | "commission-dashboard"
-  | "tenure-alerts";
+  | "tenure-alerts"
+  | "celebrations";
 
 function AppContent() {
   const [selectedSite, setSelectedSite] = useState<Site>("Austin");
@@ -270,6 +273,20 @@ function AppContent() {
                   Tenure Alerts
                 </div>
               </button>
+
+              <button
+                onClick={() => setActiveView("celebrations")}
+                className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                  activeView === "celebrations"
+                    ? "border-indigo-500 text-indigo-600"
+                    : "border-transparent text-slate-600 hover:text-slate-800 hover:border-gray-300"
+                }`}
+              >
+                <div className="flex items-center">
+                  <GiftIcon className="w-4 h-4 mr-2" />
+                  Celebrations
+                </div>
+              </button>
             </div>
 
             {/* Home Button */}
@@ -293,6 +310,9 @@ function AppContent() {
         )}
         {activeView === "tenure-alerts" && (
           <TenureAlertsDashboard site={selectedSite} />
+        )}
+        {activeView === "celebrations" && (
+          <CelebrationsDashboard site={selectedSite} employees={employees} />
         )}
       </main>
     </div>

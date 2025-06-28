@@ -9,6 +9,7 @@ export const sampleEmployees: Employee[] = [
     site: "Austin",
     status: "active",
     startDate: new Date("2019-03-15").getTime(),
+    birthDate: new Date("1985-07-22").getTime(),
     teamId: "austin-leadership",
   },
   {
@@ -18,6 +19,7 @@ export const sampleEmployees: Employee[] = [
     site: "Charlotte",
     status: "active",
     startDate: new Date("2020-01-20").getTime(),
+    birthDate: new Date("1982-11-30").getTime(),
     teamId: "charlotte-leadership",
   },
 
@@ -29,6 +31,7 @@ export const sampleEmployees: Employee[] = [
     site: "Austin",
     status: "active",
     startDate: new Date("2021-06-10").getTime(),
+    birthDate: new Date("1988-02-14").getTime(),
     managerId: "dir-1",
     teamId: "austin-team-1",
   },
@@ -39,6 +42,7 @@ export const sampleEmployees: Employee[] = [
     site: "Austin",
     status: "active",
     startDate: new Date("2021-09-15").getTime(),
+    birthDate: new Date("1990-05-08").getTime(),
     managerId: "dir-1",
     teamId: "austin-team-2",
   },
@@ -51,6 +55,7 @@ export const sampleEmployees: Employee[] = [
     site: "Charlotte",
     status: "active",
     startDate: new Date("2021-04-20").getTime(),
+    birthDate: new Date("1987-09-25").getTime(),
     managerId: "dir-2",
     teamId: "charlotte-team-1",
   },
@@ -61,6 +66,7 @@ export const sampleEmployees: Employee[] = [
     site: "Charlotte",
     status: "active",
     startDate: new Date("2021-11-01").getTime(),
+    birthDate: new Date("1989-12-03").getTime(),
     managerId: "dir-2",
     teamId: "charlotte-team-2",
   },
@@ -73,6 +79,7 @@ export const sampleEmployees: Employee[] = [
     site: "Austin",
     status: "active",
     startDate: new Date("2022-02-14").getTime(),
+    birthDate: new Date("1991-02-14").getTime(), // Birthday today for testing!
     managerId: "mgr-1", // Reports to Jessica Williams
     teamId: "austin-team-1-alpha",
     commissionTier: "veteran",
@@ -84,6 +91,7 @@ export const sampleEmployees: Employee[] = [
     site: "Austin",
     status: "active",
     startDate: new Date("2022-05-30").getTime(),
+    birthDate: new Date("1993-06-18").getTime(),
     managerId: "mgr-2", // Reports to David Rodriguez
     teamId: "austin-team-2-alpha",
     commissionTier: "veteran",
@@ -97,6 +105,7 @@ export const sampleEmployees: Employee[] = [
     site: "Charlotte",
     status: "active",
     startDate: new Date("2022-01-18").getTime(),
+    birthDate: new Date("1992-03-10").getTime(),
     managerId: "mgr-3", // Reports to Amanda Johnson
     teamId: "charlotte-team-1-alpha",
     commissionTier: "veteran",
@@ -110,6 +119,7 @@ export const sampleEmployees: Employee[] = [
     site: "Austin",
     status: "active",
     startDate: new Date("2023-08-15").getTime(),
+    birthDate: new Date("1995-08-15").getTime(),
     managerId: "mgr-1", // Reports directly to Jessica Williams
     teamId: "austin-team-1-alpha",
     commissionTier: "new",
@@ -122,6 +132,7 @@ export const sampleEmployees: Employee[] = [
     site: "Austin",
     status: "active",
     startDate: new Date("2022-10-20").getTime(),
+    birthDate: new Date("1994-04-20").getTime(),
     managerId: "mgr-1", // Reports directly to Jessica Williams
     teamId: "austin-team-1-alpha",
     commissionTier: "veteran",
@@ -133,6 +144,7 @@ export const sampleEmployees: Employee[] = [
     site: "Austin",
     status: "active",
     startDate: new Date("2023-12-01").getTime(),
+    birthDate: new Date("1996-01-15").getTime(),
     managerId: "mgr-2", // Reports directly to David Rodriguez
     teamId: "austin-team-2-alpha",
     commissionTier: "new",
@@ -144,6 +156,7 @@ export const sampleEmployees: Employee[] = [
     site: "Austin",
     status: "active",
     startDate: new Date("2022-07-12").getTime(),
+    birthDate: new Date("1993-10-05").getTime(),
     managerId: "mgr-2", // Reports directly to David Rodriguez
     teamId: "austin-team-2-alpha",
     commissionTier: "veteran",
@@ -157,6 +170,7 @@ export const sampleEmployees: Employee[] = [
     site: "Charlotte",
     status: "active",
     startDate: new Date("2023-09-05").getTime(),
+    birthDate: new Date("1997-09-05").getTime(),
     managerId: "mgr-3", // Reports directly to Amanda Johnson
     teamId: "charlotte-team-1-alpha",
     commissionTier: "new",
@@ -169,6 +183,7 @@ export const sampleEmployees: Employee[] = [
     site: "Charlotte",
     status: "active",
     startDate: new Date("2022-11-30").getTime(),
+    birthDate: new Date("1992-07-28").getTime(),
     managerId: "mgr-3", // Reports directly to Amanda Johnson
     teamId: "charlotte-team-1-alpha",
     commissionTier: "veteran",
@@ -180,6 +195,7 @@ export const sampleEmployees: Employee[] = [
     site: "Charlotte",
     status: "active",
     startDate: new Date("2023-01-15").getTime(),
+    birthDate: new Date("1994-11-12").getTime(),
     managerId: "mgr-4", // Reports directly to Robert Kim
     teamId: "charlotte-team-2-alpha",
     commissionTier: "veteran",

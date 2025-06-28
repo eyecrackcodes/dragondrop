@@ -5,6 +5,7 @@ import {
   UserIcon,
   CurrencyDollarIcon,
   CalendarIcon,
+  CakeIcon,
 } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
 import {
@@ -28,6 +29,19 @@ interface EmployeeModalProps {
 
 const roles: Role[] = ["Sales Director", "Sales Manager", "Team Lead", "Agent"];
 const sites: Site[] = ["Austin", "Charlotte"];
+
+interface FormData {
+  name?: string;
+  role?: Role;
+  site?: Site;
+  startDate?: number;
+  birthDate?: number;
+  status?: Status;
+  commissionTier?: CommissionTier;
+  notes?: string;
+  managerId?: string;
+  teamId?: string;
+}
 
 export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   employee,
@@ -54,7 +68,18 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
 
   useEffect(() => {
     if (employee && isOpen) {
-      setFormData({ ...employee });
+      setFormData({
+        name: employee.name,
+        role: employee.role,
+        site: employee.site,
+        startDate: employee.startDate,
+        birthDate: employee.birthDate,
+        status: employee.status,
+        commissionTier: employee.commissionTier,
+        notes: employee.notes || "",
+        managerId: employee.managerId,
+        teamId: employee.teamId,
+      });
     } else if (mode === "create" && isOpen) {
       // Set default start date to 6 months ago for new employees
       const sixMonthsAgo = new Date();
@@ -65,6 +90,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
         role: "Agent",
         site: defaultSite,
         startDate: sixMonthsAgo.getTime(),
+        birthDate: undefined,
         status: "active",
         commissionTier: "new",
         notes: "",
@@ -144,6 +170,9 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     }
     if (formData.teamId) {
       updatedEmployee.teamId = formData.teamId;
+    }
+    if (formData.birthDate) {
+      updatedEmployee.birthDate = formData.birthDate;
     }
 
     // Set commission tier for Agents and Team Leads
@@ -442,6 +471,56 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                     </button>
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* Birth Date */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Birth Date
+              </label>
+              {isViewMode ? (
+                <div className="flex items-center">
+                  <CakeIcon className="w-5 h-5 text-gray-400 mr-2" />
+                  <span className="text-gray-900">
+                    {employee?.birthDate
+                      ? format(new Date(employee.birthDate), "MMM dd, yyyy")
+                      : "Not specified"}
+                  </span>
+                </div>
+              ) : (
+                <input
+                  type="date"
+                  value={
+                    formData.birthDate
+                      ? format(new Date(formData.birthDate), "yyyy-MM-dd")
+                      : ""
+                  }
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const selectedDate = new Date(
+                        e.target.value + "T12:00:00"
+                      );
+                      setFormData({
+                        ...formData,
+                        birthDate: selectedDate.getTime(),
+                      });
+                    } else {
+                      setFormData({
+                        ...formData,
+                        birthDate: undefined,
+                      });
+                    }
+                  }}
+                  min="1950-01-01"
+                  max={format(new Date(), "yyyy-MM-dd")}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              )}
+              {!isViewMode && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Optional: Used for birthday celebrations
+                </p>
               )}
             </div>
           </div>

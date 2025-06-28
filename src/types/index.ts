@@ -15,6 +15,7 @@ export interface Employee {
   role: Role;
   site: Site;
   startDate: number; // timestamp
+  birthDate?: number; // timestamp - optional for existing data
   managerId?: string;
   teamId?: string;
   status: Status;
