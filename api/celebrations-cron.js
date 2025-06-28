@@ -1,4 +1,17 @@
 const fetch = require("node-fetch");
+const { initializeApp } = require("firebase/app");
+const { getDatabase, ref, get } = require("firebase/database");
+
+// Firebase configuration from environment variables
+const firebaseConfig = {
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.REACT_APP_FIREBASE_DATABASE_URL,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+};
 
 module.exports = async (req, res) => {
   // Set CORS headers
@@ -40,32 +53,79 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // In a real implementation, you would:
-    // 1. Connect to your database
-    // 2. Get all employees with birthdays
-    // 3. Check for birthdays and anniversaries today
-    // 4. Send notifications to Slack
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
 
-    // For now, we'll return a mock response
-    const mockCelebrations = {
-      birthdays: [{ name: "John Doe", site: "Austin" }],
-      anniversaries: [{ name: "Jane Smith", site: "Charlotte", years: 2 }],
-    };
+    // Get all employees from Firebase
+    const employeesRef = ref(database, "employees");
+    const snapshot = await get(employeesRef);
+
+    const employees = [];
+    if (snapshot.exists()) {
+      Object.entries(snapshot.val()).forEach(([id, employee]) => {
+        if (employee.status === "active") {
+          employees.push({ id, ...employee });
+        }
+      });
+    }
+
+    // Get today's date
+    const today = new Date();
+    const todayMonth = today.getMonth() + 1;
+    const todayDay = today.getDate();
+
+    // Find birthdays and anniversaries
+    const birthdays = [];
+    const anniversaries = [];
+
+    employees.forEach((employee) => {
+      // Check birthdays
+      if (employee.birthDate) {
+        const birthDate = new Date(employee.birthDate);
+        if (
+          birthDate.getMonth() + 1 === todayMonth &&
+          birthDate.getDate() === todayDay
+        ) {
+          birthdays.push({
+            name: employee.name,
+            site: employee.site,
+          });
+        }
+      }
+
+      // Check work anniversaries
+      if (employee.startDate) {
+        const startDate = new Date(employee.startDate);
+        if (
+          startDate.getMonth() + 1 === todayMonth &&
+          startDate.getDate() === todayDay &&
+          startDate.getFullYear() !== today.getFullYear()
+        ) {
+          const years = today.getFullYear() - startDate.getFullYear();
+          anniversaries.push({
+            name: employee.name,
+            site: employee.site,
+            years: years,
+          });
+        }
+      }
+    });
 
     // Build Slack message
     let message = "";
 
-    if (mockCelebrations.birthdays.length > 0) {
+    if (birthdays.length > 0) {
       message += "🎂 *Birthdays Today*\n";
-      mockCelebrations.birthdays.forEach((person) => {
+      birthdays.forEach((person) => {
         message += `• Happy Birthday to *${person.name}* (${person.site})! 🎉\n`;
       });
       message += "\n";
     }
 
-    if (mockCelebrations.anniversaries.length > 0) {
+    if (anniversaries.length > 0) {
       message += "🎊 *Work Anniversaries Today*\n";
-      mockCelebrations.anniversaries.forEach((person) => {
+      anniversaries.forEach((person) => {
         const yearText = person.years === 1 ? "year" : "years";
         message += `• Congratulations to *${person.name}* on ${person.years} ${yearText} with the company! 🥳\n`;
       });
@@ -101,7 +161,11 @@ module.exports = async (req, res) => {
       message: message
         ? "Celebrations sent successfully"
         : "No celebrations today",
-      celebrations: mockCelebrations,
+      celebrations: {
+        birthdays: birthdays.length,
+        anniversaries: anniversaries.length,
+        totalEmployees: employees.length,
+      },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
