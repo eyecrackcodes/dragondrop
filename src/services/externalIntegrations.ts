@@ -152,9 +152,18 @@ class ExternalIntegrationsService {
         });
 
         if (!response.ok) {
-          const errorData = await response
-            .json()
-            .catch(() => ({ error: "Unknown error" }));
+          let errorData;
+          try {
+            const responseText = await response.text();
+            console.error("Slack proxy raw response:", responseText);
+            try {
+              errorData = JSON.parse(responseText);
+            } catch {
+              errorData = { error: responseText || "Unknown error" };
+            }
+          } catch {
+            errorData = { error: "Failed to read error response" };
+          }
           console.error("Slack proxy error response:", errorData);
           throw new Error(
             errorData.error ||
