@@ -5,8 +5,17 @@
     },
     "api/test-slack.js": {
       "maxDuration": 10
+    },
+    "api/tenure-alerts-cron.js": {
+      "maxDuration": 10
     }
   },
+  "crons": [
+    {
+      "path": "/api/tenure-alerts-cron",
+      "schedule": "0 9 * * 1-5"
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",
