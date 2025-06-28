@@ -12,6 +12,8 @@ import {
   BellIcon,
   Cog6ToothIcon,
 } from "@heroicons/react/24/outline";
+import { database } from "../services/firebase";
+import { ref, update } from "firebase/database";
 
 interface CelebrationsDashboardProps {
   employees: Employee[];
@@ -23,6 +25,7 @@ export const CelebrationsDashboard: React.FC<CelebrationsDashboardProps> = ({
   site,
 }) => {
   const [loading, setLoading] = useState(false);
+  const [injectionResult, setInjectionResult] = useState<string | null>(null);
   const [config, setConfig] = useState<CelebrationConfig>({
     channelId: localStorage.getItem("celebrationsChannelId") || "",
     enableBirthdays: localStorage.getItem("enableBirthdays") !== "false",
@@ -37,6 +40,112 @@ export const CelebrationsDashboard: React.FC<CelebrationsDashboardProps> = ({
     success: boolean;
     message: string;
   } | null>(null);
+
+  // Birthday data to inject
+  const birthdayData = [
+    { firstName: "Adelina", lastInitial: "G", month: 8, day: 20 },
+    { firstName: "Alana", lastInitial: "T", month: 7, day: 17 },
+    { firstName: "Andy", lastInitial: "N", month: 10, day: 24 },
+    { firstName: "Aquil", lastInitial: "M", month: 4, day: 22 },
+    { firstName: "Ashley", lastInitial: "M", month: 12, day: 28 },
+    { firstName: "Autra", lastInitial: "O", month: 5, day: 22 },
+    { firstName: "Camryn", lastInitial: "A", month: 4, day: 30 },
+    { firstName: "Chris", lastInitial: "C", month: 6, day: 25 },
+    { firstName: "David", lastInitial: "D", month: 9, day: 25 },
+    { firstName: "Gee", lastInitial: "G", month: 3, day: 10 },
+    { firstName: "Ilya", lastInitial: "M", month: 11, day: 22 },
+    { firstName: "Jaime", lastInitial: "V", month: 3, day: 14 },
+    { firstName: "Jenny", lastInitial: "D", month: 12, day: 9 },
+    { firstName: "John", lastInitial: "P", month: 9, day: 7 },
+    { firstName: "John", lastInitial: "S", month: 4, day: 3 },
+    { firstName: "Karlee", lastInitial: "B", month: 11, day: 15 },
+    { firstName: "Katelyn", lastInitial: "H", month: 2, day: 23 },
+    { firstName: "Kevin", lastInitial: "G", month: 3, day: 23 },
+    { firstName: "Khadijia", lastInitial: "E", month: 11, day: 15 },
+    { firstName: "Keyanna", lastInitial: "H", month: 8, day: 3 },
+    { firstName: "Kyle", lastInitial: "W", month: 6, day: 6 },
+    { firstName: "Marc", lastInitial: "G", month: 10, day: 23 },
+    { firstName: "Mario", lastInitial: "H", month: 2, day: 22 },
+    { firstName: "Mark", lastInitial: "G", month: 10, day: 23 },
+    { firstName: "Melisa", lastInitial: "H", month: 2, day: 16 },
+    { firstName: "Melisa", lastInitial: "S", month: 10, day: 9 },
+    { firstName: "Miguel", lastInitial: "P", month: 5, day: 10 },
+    { firstName: "Monica", lastInitial: "A", month: 10, day: 17 },
+    { firstName: "Montrell", lastInitial: "M", month: 2, day: 15 },
+    { firstName: "Romey", lastInitial: "K", month: 1, day: 18 },
+    { firstName: "Sandi", lastInitial: "D", month: 3, day: 19 },
+    { firstName: "Sara", lastInitial: "G", month: 7, day: 21 },
+    { firstName: "Shanaya", lastInitial: "A", month: 8, day: 16 },
+    { firstName: "Sonya", lastInitial: "K", month: 8, day: 17 },
+    { firstName: "Steve", lastInitial: "B", month: 4, day: 25 },
+    { firstName: "Tesha", lastInitial: "J", month: 10, day: 30 },
+    { firstName: "Wenny", lastInitial: "G", month: 9, day: 19 },
+    { firstName: "Krystal", lastInitial: "R", month: 9, day: 26 },
+  ];
+
+  const handleInjectBirthdays = async () => {
+    if (!database) {
+      setInjectionResult("❌ Firebase not configured. Using mock data mode.");
+      return;
+    }
+
+    setLoading(true);
+    let updateCount = 0;
+    let notFound: string[] = [];
+    let matched: string[] = [];
+    const updates: { [key: string]: any } = {};
+
+    birthdayData.forEach((birthday) => {
+      const employee = employees.find((emp) => {
+        const empName = emp.name.toLowerCase();
+        const firstName = birthday.firstName.toLowerCase();
+        const lastInitial = birthday.lastInitial.toLowerCase();
+        return (
+          empName.startsWith(firstName) &&
+          empName.split(" ").pop()?.[0].toLowerCase() === lastInitial
+        );
+      });
+
+      if (employee) {
+        // Create birthdate (using year 2000 as placeholder)
+        const birthDate = new Date(
+          2000,
+          birthday.month - 1,
+          birthday.day,
+          12,
+          0,
+          0
+        ).getTime();
+        updates[`employees/${employee.id}/birthDate`] = birthDate;
+        matched.push(`${employee.name} → ${birthday.month}/${birthday.day}`);
+        updateCount++;
+      } else {
+        notFound.push(`${birthday.firstName} ${birthday.lastInitial}.`);
+      }
+    });
+
+    try {
+      if (Object.keys(updates).length > 0) {
+        await update(ref(database), updates);
+      }
+
+      let resultMessage = `✅ Updated ${updateCount} employees with birthdays!\n\n`;
+      if (matched.length > 0) {
+        resultMessage += `Matched:\n${matched.join("\n")}\n\n`;
+      }
+      if (notFound.length > 0) {
+        resultMessage += `Not found (${notFound.length}):\n${notFound.join(
+          ", "
+        )}`;
+      }
+
+      setInjectionResult(resultMessage);
+    } catch (error) {
+      setInjectionResult(`❌ Error updating birthdays: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filter employees by site if specified
   const filteredEmployees = site
@@ -109,6 +218,30 @@ export const CelebrationsDashboard: React.FC<CelebrationsDashboardProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Development Mode Birthday Injection Button */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-yellow-900 mb-2">
+            Development Tool: Inject Birthdays
+          </h3>
+          <p className="text-sm text-yellow-700 mb-3">
+            This button will inject birthdays for 38 employees based on first
+            name and last initial matching.
+          </p>
+          <button
+            onClick={handleInjectBirthdays}
+            className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+          >
+            🎂 Inject All Birthdays
+          </button>
+          {injectionResult && (
+            <pre className="mt-3 text-xs text-yellow-800 whitespace-pre-wrap bg-yellow-100 p-3 rounded">
+              {injectionResult}
+            </pre>
+          )}
+        </div>
+      )}
 
       {/* Configuration Panel */}
       {showConfig && (
