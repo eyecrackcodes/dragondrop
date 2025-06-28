@@ -709,6 +709,30 @@ export const OrgChart: React.FC<OrgChartProps> = ({
           );
         }
 
+        // Check birthDate changes (handle undefined values)
+        if (originalEmployee.birthDate !== updatedEmployee.birthDate) {
+          const originalBirthDate = originalEmployee.birthDate
+            ? new Date(originalEmployee.birthDate).toLocaleDateString()
+            : "Not set";
+          const updatedBirthDate = updatedEmployee.birthDate
+            ? new Date(updatedEmployee.birthDate).toLocaleDateString()
+            : "Not set";
+          changes.push(
+            `Birth Date: "${originalBirthDate}" → "${updatedBirthDate}"`
+          );
+        }
+
+        // Check notes changes (handle undefined/empty values)
+        const originalNotes = originalEmployee.notes || "";
+        const updatedNotes = updatedEmployee.notes || "";
+        if (originalNotes !== updatedNotes) {
+          changes.push(
+            `Notes: "${originalNotes || "(empty)"}" → "${
+              updatedNotes || "(empty)"
+            }"`
+          );
+        }
+
         if (changes.length > 0) {
           // Add to pending changes
           addPendingChange({
@@ -721,7 +745,14 @@ export const OrgChart: React.FC<OrgChartProps> = ({
           const existingChanges = JSON.parse(
             localStorage.getItem("pending_employee_edits") || "{}"
           );
-          existingChanges[originalEmployee.id] = updatedEmployee;
+          // Ensure we store all fields including birthDate and notes
+          existingChanges[originalEmployee.id] = {
+            ...originalEmployee,
+            ...updatedEmployee,
+            // Explicitly include fields that might be undefined
+            birthDate: updatedEmployee.birthDate,
+            notes: updatedEmployee.notes,
+          };
           localStorage.setItem(
             "pending_employee_edits",
             JSON.stringify(existingChanges)
@@ -925,14 +956,26 @@ export const OrgChart: React.FC<OrgChartProps> = ({
     for (const [employeeId, updatedEmployee] of Object.entries(pendingEdits)) {
       try {
         if (isConnected) {
-          await firebaseEmployees.updateEmployee(
-            employeeId,
-            updatedEmployee as Employee
-          );
-          console.log(
-            "✅ Applied edit for employee:",
-            (updatedEmployee as Employee).name
-          );
+          // Extract only the changed fields to avoid overwriting unchanged data
+          const employee = updatedEmployee as Employee;
+          const updates: Partial<Employee> = {
+            name: employee.name,
+            role: employee.role,
+            site: employee.site,
+            startDate: employee.startDate,
+            status: employee.status,
+            managerId: employee.managerId,
+            teamId: employee.teamId,
+            commissionTier: employee.commissionTier,
+            // Include optional fields that might have been added/changed
+            ...(employee.birthDate !== undefined && {
+              birthDate: employee.birthDate,
+            }),
+            ...(employee.notes !== undefined && { notes: employee.notes }),
+          };
+
+          await firebaseEmployees.updateEmployee(employeeId, updates);
+          console.log("✅ Applied edit for employee:", employee.name);
         } else {
           console.log(
             "📝 Mock mode - Applied edit for employee:",
