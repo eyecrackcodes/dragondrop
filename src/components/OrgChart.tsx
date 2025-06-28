@@ -8,6 +8,7 @@ import {
   ExclamationTriangleIcon,
   Squares2X2Icon,
   ChevronDownIcon,
+  ChatBubbleOvalLeftIcon,
 } from "@heroicons/react/24/outline";
 import { Employee, Site, Role, CommissionTier } from "../types";
 import { EmployeeCard } from "./EmployeeCard";
@@ -17,6 +18,7 @@ import { ChangeConfirmationModal } from "./ChangeConfirmationModal";
 import { IntegrationsModal } from "./IntegrationsModal";
 import { TerminationModal } from "./TerminationModal";
 import { TerminatedEmployeesView } from "./TerminatedEmployeesView";
+import { SlackTestingInterface } from "./SlackTestingInterface";
 import { CollapsibleHierarchy } from "./CollapsibleHierarchy";
 import {
   useFirebaseOrgStructure,
@@ -168,6 +170,9 @@ export const OrgChart: React.FC<OrgChartProps> = ({
   const [employeeToTerminate, setEmployeeToTerminate] =
     useState<Employee | null>(null);
 
+  // Slack testing interface state
+  const [slackTestingOpen, setSlackTestingOpen] = useState(false);
+
   // View mode state - add terminated employees view
   const [viewMode, setViewMode] = useState<
     | "modern-hierarchy"
@@ -218,7 +223,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({
   // Get raw employee data including terminated employees for TerminatedEmployeesView
   const rawMockData = useMockEmployees();
 
-  // Raw employees including terminated ones
+  // Raw employees including terminated ones - use Firebase data when connected
   const allEmployeesIncludingTerminated = isConnected
     ? firebaseEmployees.employees
     : rawMockData.employees;
@@ -1598,6 +1603,17 @@ export const OrgChart: React.FC<OrgChartProps> = ({
                                 rounded-full border-2 border-white shadow-lg animate-bounce"
                   ></div>
                 )}
+              </button>
+
+              {/* Slack Testing Button */}
+              <button
+                onClick={() => setSlackTestingOpen(true)}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-5 py-3 rounded-xl font-semibold 
+                          hover:from-blue-600 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl 
+                          flex items-center border border-blue-400 hover:border-blue-500"
+              >
+                <ChatBubbleOvalLeftIcon className="w-5 h-5 mr-2" />
+                <span>Test Slack</span>
               </button>
 
               {/* Add Employee Button */}
@@ -3889,6 +3905,12 @@ export const OrgChart: React.FC<OrgChartProps> = ({
       <IntegrationsModal
         isOpen={integrationsModalOpen}
         onClose={() => setIntegrationsModalOpen(false)}
+      />
+
+      {/* Slack Testing Interface */}
+      <SlackTestingInterface
+        isOpen={slackTestingOpen}
+        onClose={() => setSlackTestingOpen(false)}
       />
 
       {/* Auto-scroll Visual Indicators - Show when dragging */}

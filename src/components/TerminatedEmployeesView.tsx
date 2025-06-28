@@ -12,6 +12,7 @@ import {
   ClipboardDocumentListIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+import { DocumentViewer } from "./DocumentViewer";
 
 interface TerminatedEmployeesViewProps {
   employees: Employee[];
@@ -40,11 +41,27 @@ export const TerminatedEmployeesView: React.FC<
   );
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
+  // Document viewer state
+  const [documentViewerOpen, setDocumentViewerOpen] = useState(false);
+  const [documentsToView, setDocumentsToView] = useState<any[]>([]);
+  const [viewingEmployeeName, setViewingEmployeeName] = useState<string>("");
+
   // Filter terminated employees
   const terminatedEmployees = useMemo(() => {
-    return employees.filter(
-      (emp) => emp.status === "terminated" && emp.termination
-    );
+    const terminated = employees.filter((emp) => emp.status === "terminated");
+
+    console.log("🔍 Terminated employees analysis:", {
+      totalEmployees: employees.length,
+      terminatedCount: terminated.length,
+      terminatedWithDetails: terminated.filter((emp) => emp.termination).length,
+      terminatedEmployees: terminated.map((emp) => ({
+        name: emp.name,
+        hasTerminationDetails: !!emp.termination,
+        documentCount: emp.termination?.documents?.length || 0,
+      })),
+    });
+
+    return terminated.filter((emp) => emp.termination);
   }, [employees]);
 
   // Apply filters
@@ -160,10 +177,21 @@ export const TerminatedEmployeesView: React.FC<
     setShowDetailsModal(true);
   };
 
-  const handleDownloadDocument = (docUrl: string, fileName: string) => {
-    // In a real implementation, this would download from storage
-    console.log(`Downloading document: ${fileName} from ${docUrl}`);
-    alert(`Document download initiated: ${fileName}`);
+  const handleViewDocuments = (employee: Employee) => {
+    if (
+      employee.termination?.documents &&
+      employee.termination.documents.length > 0
+    ) {
+      console.log(
+        `📄 Opening document viewer for ${employee.name} with ${employee.termination.documents.length} documents`
+      );
+      setDocumentsToView(employee.termination.documents);
+      setViewingEmployeeName(employee.name);
+      setDocumentViewerOpen(true);
+    } else {
+      console.log(`⚠️ No documents found for ${employee.name}`);
+      alert(`No documents available for ${employee.name}`);
+    }
   };
 
   return (
@@ -418,7 +446,25 @@ export const TerminatedEmployeesView: React.FC<
                       )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {employee.termination?.documents.length || 0} files
+                      <div className="flex items-center space-x-2">
+                        <span>
+                          {employee.termination?.documents?.length || 0} files
+                        </span>
+                        {employee.termination?.documents &&
+                        employee.termination.documents.length > 0 ? (
+                          <button
+                            onClick={() => handleViewDocuments(employee)}
+                            className="text-blue-600 hover:text-blue-900 text-xs"
+                            title="View documents"
+                          >
+                            <EyeIcon className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <span className="text-gray-400 text-xs">
+                            No documents
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {employee.termination?.finalPayoutAmount
@@ -575,46 +621,57 @@ export const TerminatedEmployeesView: React.FC<
               </div>
 
               {/* Documents */}
-              {selectedEmployee.termination.documents.length > 0 && (
-                <div>
-                  <h3 className="font-medium text-gray-900 mb-3 flex items-center">
-                    <DocumentArrowDownIcon className="w-5 h-5 mr-2" />
-                    Documents ({selectedEmployee.termination.documents.length})
-                  </h3>
-                  <div className="space-y-3">
-                    {selectedEmployee.termination.documents.map((doc) => (
-                      <div
-                        key={doc.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <DocumentArrowDownIcon className="w-5 h-5 text-gray-400" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
-                              {doc.fileName}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {doc.category.replace("_", " ").toUpperCase()} •
-                              Uploaded{" "}
-                              {format(new Date(doc.uploadDate), "MMM dd, yyyy")}{" "}
-                              by {doc.uploadedBy}
-                            </p>
+              {selectedEmployee.termination.documents &&
+                selectedEmployee.termination.documents.length > 0 && (
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-3 flex items-center">
+                      <DocumentArrowDownIcon className="w-5 h-5 mr-2" />
+                      Documents ({selectedEmployee.termination.documents.length}
+                      )
+                    </h3>
+                    <div className="space-y-3">
+                      {selectedEmployee.termination.documents.map((doc) => (
+                        <div
+                          key={doc.id}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <DocumentArrowDownIcon className="w-5 h-5 text-gray-400" />
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">
+                                {doc.fileName}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {doc.category.replace("_", " ").toUpperCase()} •
+                                Uploaded{" "}
+                                {format(
+                                  new Date(doc.uploadDate),
+                                  "MMM dd, yyyy"
+                                )}{" "}
+                                by {doc.uploadedBy}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => {
+                                setDocumentsToView([doc]);
+                                setViewingEmployeeName(selectedEmployee.name);
+                                setDocumentViewerOpen(true);
+                              }}
+                              className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
+                              title="View document"
+                            >
+                              <EyeIcon className="w-4 h-4 mr-1" />
+                              View
+                            </button>
                           </div>
                         </div>
-
-                        <button
-                          onClick={() =>
-                            handleDownloadDocument(doc.fileUrl, doc.fileName)
-                          }
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                        >
-                          Download
-                        </button>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
 
             {/* Modal Footer */}
@@ -629,6 +686,14 @@ export const TerminatedEmployeesView: React.FC<
           </div>
         </div>
       )}
+
+      {/* Document Viewer */}
+      <DocumentViewer
+        documents={documentsToView}
+        isOpen={documentViewerOpen}
+        onClose={() => setDocumentViewerOpen(false)}
+        employeeName={viewingEmployeeName}
+      />
     </div>
   );
 };
