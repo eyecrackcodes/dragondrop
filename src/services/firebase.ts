@@ -307,7 +307,7 @@ export const EmployeeService = {
     try {
       await this.update(employeeId, {
         status: "terminated",
-        termination: terminationDetails,
+        terminationDetails: terminationDetails,
       });
     } catch (error) {
       console.error("Error terminating employee:", error);

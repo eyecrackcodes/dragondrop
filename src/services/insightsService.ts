@@ -94,7 +94,7 @@ export class InsightsService {
         const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
         const recentTerminations = terminatedMembers.filter(
           (emp) =>
-            emp.termination && emp.termination.terminationDate > ninetyDaysAgo
+            emp.terminationDetails && emp.terminationDetails.terminationDate > ninetyDaysAgo
         ).length;
 
         return {
@@ -182,10 +182,10 @@ export class InsightsService {
 
     // Calculate average tenure at termination
     const tenureAtTermination = terminatedEmployees
-      .filter((emp) => emp.termination)
+      .filter((emp) => emp.terminationDetails)
       .map((emp) => {
         const tenure =
-          (emp.termination!.terminationDate - emp.startDate) /
+          (emp.terminationDetails!.terminationDate - emp.startDate) /
           (30 * 24 * 60 * 60 * 1000);
         return tenure;
       });
@@ -199,8 +199,8 @@ export class InsightsService {
     // Count termination reasons
     const reasonCounts: Record<string, number> = {};
     terminatedEmployees.forEach((emp) => {
-      if (emp.termination) {
-        const reason = emp.termination.reason;
+      if (emp.terminationDetails) {
+        const reason = emp.terminationDetails.reason;
         reasonCounts[reason] = (reasonCounts[reason] || 0) + 1;
       }
     });

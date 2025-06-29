@@ -149,6 +149,12 @@ export const TerminationModal: React.FC<TerminationModalProps> = ({
         notes: formData.notes.trim(),
         documents,
         exitSurveyCompleted: formData.exitSurveyCompleted,
+        date: new Date(formData.terminationDate).toISOString().split("T")[0],
+        eligibleForRehire:
+          formData.reason !== "misconduct" &&
+          formData.reason !== "performance_issues",
+        exitInterviewCompleted: formData.exitSurveyCompleted,
+        equipmentReturned: true, // Default to true, can be made configurable
       };
 
       // Only include finalPayoutAmount if it has a valid value

@@ -226,7 +226,7 @@ export const sampleEmployees: Employee[] = [
     managerId: "mgr-1",
     teamId: "austin-team-1-alpha",
     commissionTier: "veteran",
-    termination: {
+    terminationDetails: {
       terminationDate: new Date("2024-01-15").getTime(),
       lastWorkingDay: new Date("2024-01-15").getTime(),
       reason: "voluntary_resignation",
@@ -262,6 +262,10 @@ export const sampleEmployees: Employee[] = [
           category: "equipment_return",
         },
       ],
+      date: new Date().toISOString().split("T")[0],
+      eligibleForRehire: true,
+      exitInterviewCompleted: false,
+      equipmentReturned: true,
       exitSurveyCompleted: true,
       finalPayoutAmount: 2850,
     },
@@ -276,7 +280,7 @@ export const sampleEmployees: Employee[] = [
     managerId: "mgr-3",
     teamId: "charlotte-team-1-alpha",
     commissionTier: "veteran",
-    termination: {
+    terminationDetails: {
       terminationDate: new Date("2023-12-08").getTime(),
       lastWorkingDay: new Date("2023-12-08").getTime(),
       reason: "performance_issues",
@@ -313,6 +317,10 @@ export const sampleEmployees: Employee[] = [
           category: "final_pay_stub",
         },
       ],
+      date: new Date().toISOString().split("T")[0],
+      eligibleForRehire: false,
+      exitInterviewCompleted: false,
+      equipmentReturned: true,
       exitSurveyCompleted: false,
       finalPayoutAmount: 4200,
     },
@@ -327,7 +335,7 @@ export const sampleEmployees: Employee[] = [
     managerId: "mgr-4",
     teamId: "charlotte-team-2-alpha",
     commissionTier: "new",
-    termination: {
+    terminationDetails: {
       terminationDate: new Date("2024-01-20").getTime(),
       lastWorkingDay: new Date("2024-01-18").getTime(),
       reason: "misconduct",
@@ -354,7 +362,12 @@ export const sampleEmployees: Employee[] = [
           category: "termination_letter",
         },
       ],
+      date: new Date().toISOString().split("T")[0],
+      eligibleForRehire: false,
+      exitInterviewCompleted: false,
+      equipmentReturned: true,
       exitSurveyCompleted: false,
+      finalPayoutAmount: 0,
     },
   },
   {

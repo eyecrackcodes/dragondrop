@@ -34,7 +34,6 @@ export interface TerminationDetails {
   exitSurveyCompleted?: boolean;
   finalPayoutAmount?: number;
   lastWorkingDay: number; // timestamp
-  reason: "performance" | "violation" | "resignation" | "other";
   date: string;
   eligibleForRehire: boolean;
   exitInterviewCompleted: boolean;
