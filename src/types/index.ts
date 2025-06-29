@@ -21,7 +21,8 @@ export interface Employee {
   status: Status;
   commissionTier?: CommissionTier; // only for agents
   notes?: string;
-  termination?: TerminationDetails;
+  notesHistory?: NoteEntry[]; // New notes history array
+  terminationDetails?: TerminationDetails;
 }
 
 export interface TerminationDetails {
@@ -33,6 +34,11 @@ export interface TerminationDetails {
   exitSurveyCompleted?: boolean;
   finalPayoutAmount?: number;
   lastWorkingDay: number; // timestamp
+  reason: "performance" | "violation" | "resignation" | "other";
+  date: string;
+  eligibleForRehire: boolean;
+  exitInterviewCompleted: boolean;
+  equipmentReturned: boolean;
 }
 
 export interface TerminationDocument {
@@ -147,3 +153,10 @@ export const AGENT_VETERAN_COMPENSATION: CompensationInfo = {
   commissionRate: 0.2,
   description: "$30k annual salary + 20% commission",
 };
+
+export interface NoteEntry {
+  id: string;
+  timestamp: number;
+  author: string;
+  content: string;
+}

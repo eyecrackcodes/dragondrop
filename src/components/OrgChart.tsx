@@ -753,6 +753,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({
             // Explicitly include fields that might be undefined
             birthDate: updatedEmployee.birthDate,
             notes: updatedEmployee.notes,
+            notesHistory: originalEmployee.notesHistory,
           };
           localStorage.setItem(
             "pending_employee_edits",
@@ -973,6 +974,9 @@ export const OrgChart: React.FC<OrgChartProps> = ({
               birthDate: employee.birthDate,
             }),
             ...(employee.notes !== undefined && { notes: employee.notes }),
+            ...(employee.notesHistory !== undefined && {
+              notesHistory: employee.notesHistory,
+            }),
           };
 
           await firebaseEmployees.updateEmployee(employeeId, updates);

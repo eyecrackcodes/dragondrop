@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Employee, Site, Role, Status, CommissionTier } from "../types";
+import {
+  Employee,
+  Site,
+  Role,
+  Status,
+  CommissionTier,
+  NoteEntry,
+} from "../types";
 import {
   XMarkIcon,
   UserIcon,
@@ -41,6 +48,7 @@ interface FormData {
   notes?: string;
   managerId?: string;
   teamId?: string;
+  notesHistory?: NoteEntry[];
 }
 
 export const EmployeeModal: React.FC<EmployeeModalProps> = ({
@@ -54,7 +62,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   availableManagers,
   defaultSite = "Austin",
 }) => {
-  const [formData, setFormData] = useState<Partial<Employee>>({
+  const [formData, setFormData] = useState<FormData>({
     name: "",
     role: "Agent",
     site: defaultSite,
@@ -62,9 +70,12 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     status: "active",
     commissionTier: "new",
     notes: "",
+    notesHistory: [],
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [newNote, setNewNote] = useState("");
+  const [showAddNote, setShowAddNote] = useState(false);
 
   useEffect(() => {
     if (employee && isOpen) {
@@ -79,6 +90,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
         notes: employee.notes || "",
         managerId: employee.managerId,
         teamId: employee.teamId,
+        notesHistory: employee.notesHistory || [],
       });
     } else if (mode === "create" && isOpen) {
       // Set default start date to 6 months ago for new employees
@@ -95,6 +107,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
         commissionTier: "new",
         notes: "",
         managerId: undefined, // Explicitly set to undefined initially
+        notesHistory: [],
       });
     }
     setErrors({});
@@ -184,6 +197,10 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       updatedEmployee.notes = formData.notes.trim();
     }
 
+    if (formData.notesHistory) {
+      updatedEmployee.notesHistory = formData.notesHistory;
+    }
+
     onSave(updatedEmployee);
     onClose();
   };
@@ -211,6 +228,42 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   const isViewMode = mode === "view";
   const isCreateMode = mode === "create";
   const commissionDetails = getCommissionDetails();
+
+  const handleInputChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleAddNote = () => {
+    if (!newNote.trim()) return;
+
+    const newNoteEntry: NoteEntry = {
+      id: generateId(),
+      timestamp: Date.now(),
+      author: "Current User", // In a real app, this would be the logged-in user
+      content: newNote.trim(),
+    };
+
+    setFormData((prev) => ({
+      ...prev,
+      notesHistory: [...(prev.notesHistory || []), newNoteEntry],
+    }));
+
+    setNewNote("");
+    setShowAddNote(false);
+  };
+
+  // Helper function to generate unique IDs
+  const generateId = () => {
+    return `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -251,13 +304,12 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                   <input
                     type="text"
                     value={formData.name || ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
+                    onChange={handleInputChange}
                     className={`w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
                       errors.name ? "border-red-500" : "border-gray-300"
                     }`}
                     placeholder="Enter employee name"
+                    name="name"
                   />
                   {errors.name && (
                     <p className="mt-1 text-sm text-red-600">{errors.name}</p>
@@ -289,12 +341,11 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                 <div>
                   <select
                     value={formData.role || ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, role: e.target.value as Role })
-                    }
+                    onChange={handleInputChange}
                     className={`w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
                       errors.role ? "border-red-500" : "border-gray-300"
                     }`}
+                    name="role"
                   >
                     {roles.map((role) => (
                       <option key={role} value={role}>
@@ -320,12 +371,11 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                 <div>
                   <select
                     value={formData.site || ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, site: e.target.value as Site })
-                    }
+                    onChange={handleInputChange}
                     className={`w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
                       errors.site ? "border-red-500" : "border-gray-300"
                     }`}
+                    name="site"
                   >
                     {sites.map((site) => (
                       <option key={site} value={site}>
@@ -377,6 +427,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                   min="2020-01-01" // Allow dates from 2020 onwards
                   max="2030-12-31" // Allow dates up to 2030
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  name="startDate"
                 />
               )}
               {!isViewMode && (
@@ -515,6 +566,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                   min="1950-01-01"
                   max={format(new Date(), "yyyy-MM-dd")}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  name="birthDate"
                 />
               )}
               {!isViewMode && (
@@ -827,6 +879,87 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
               </span>
             </div>
           )}
+
+          {/* Notes History */}
+          <div className="md:col-span-2">
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Notes History
+              </label>
+              {mode !== "view" && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddNote(true)}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  + Add Note
+                </button>
+              )}
+            </div>
+
+            {/* Add Note Form */}
+            {showAddNote && mode !== "view" && (
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <textarea
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  placeholder="Enter your note..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+                  rows={3}
+                />
+                <div className="flex justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddNote(false);
+                      setNewNote("");
+                    }}
+                    className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddNote}
+                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
+                    Add Note
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Notes List */}
+            <div className="space-y-3 max-h-60 overflow-y-auto">
+              {formData.notesHistory && formData.notesHistory.length > 0 ? (
+                [...formData.notesHistory]
+                  .sort((a, b) => b.timestamp - a.timestamp)
+                  .map((note) => (
+                    <div
+                      key={note.id}
+                      className="p-3 bg-gray-50 rounded-lg border border-gray-200"
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-sm font-medium text-gray-700">
+                          {note.author}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {format(
+                            new Date(note.timestamp),
+                            "MMM d, yyyy 'at' h:mm a"
+                          )}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                        {note.content}
+                      </p>
+                    </div>
+                  ))
+              ) : (
+                <p className="text-sm text-gray-500 italic">No notes yet</p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
