@@ -451,6 +451,10 @@ export const TerminationModal: React.FC<TerminationModalProps> = ({
                 <p className="text-gray-500 text-sm mt-1">
                   PDF, DOC, DOCX, TXT, JPG, PNG files supported
                 </p>
+                <p className="text-amber-600 text-xs mt-2 bg-amber-50 px-3 py-1 rounded-md inline-block">
+                  Note: Files are stored as metadata only. Actual file storage
+                  requires a separate service.
+                </p>
               </div>
             </div>
 

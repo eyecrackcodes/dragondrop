@@ -216,7 +216,7 @@ export const TerminatedEmployeesView: React.FC<
   };
 
   return (
-    <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
+    <div className="space-y-6 bg-gray-50 min-h-screen">
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
         <div className="flex justify-between items-center">
@@ -623,9 +623,12 @@ export const TerminatedEmployeesView: React.FC<
                           Details
                         </button>
                       ) : (
-                        <span className="text-gray-400 text-xs">
-                          No details
-                        </span>
+                        <div className="text-gray-400 text-xs">
+                          <p>No details available</p>
+                          <p className="text-xs text-blue-600 mt-1">
+                            (Re-terminate to add details)
+                          </p>
+                        </div>
                       )}
                     </td>
                   </tr>
